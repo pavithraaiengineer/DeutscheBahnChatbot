@@ -1,0 +1,9 @@
+# Backend runs with Python standard library only.
+# No install is required for the backend:
+#     python -m app.main
+#
+# Optional frontend:
+#     pip install streamlit
+#     streamlit run frontend/streamlit_app.py
+#
+# Keep this file dependency-light to avoid Python 3.14 / pydantic-core build conflicts.
