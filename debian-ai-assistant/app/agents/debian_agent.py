@@ -277,7 +277,7 @@ class DeBianAgent:
             return "voice_processing"
         return "general"
 
-    def respond(self, message: str, payload: dict | None = None) -> dict:
+    def respond(self, message: str, payload: dict | None = None, history: list | None = None) -> dict:
         payload = payload or {}
         language = payload.get("language") or detect_language(message)
         intent = self.classify_intent(message, payload)
@@ -316,6 +316,7 @@ class DeBianAgent:
             rag_context=rag_context,
             tool_result=sanitize_payload(tool_result or {}),
             fallback_response=fallback_response,
+            history=history or [],
         )
 
         response = {

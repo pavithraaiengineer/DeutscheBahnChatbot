@@ -386,14 +386,17 @@ async function human(){
   add("bot", `${g("greet1").split("!")[0]}!\nReference: ${r.handoff_id}\nStatus: ${r.handoff_status}`);
 }
 
+var _history = [];
 async function send(){
   let t = input.value.trim();
   if(!t) return;
   add("user", t);
   input.value = "";
   if(step){ await guided(t); return; }
-  let r = await post("/assist", {message: t, language: lang()});
-  add("bot", r.response + (r.used_llm ? "\n\nLLM: used" : "\n\nLLM: fallback mode"));
+  _history.push({role:"user", content: t});
+  let r = await post("/assist", {message: t, language: lang(), history: _history.slice(-10)});
+  add("bot", r.response);
+  if(r.response) _history.push({role:"assistant", content: r.response});
 }
 
 async function guided(t){

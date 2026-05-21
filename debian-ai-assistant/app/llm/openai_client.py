@@ -35,6 +35,7 @@ def generate_llm_response(
     rag_context: dict,
     tool_result: dict,
     fallback_response: str,
+    history: list | None = None,
 ) -> dict:
     api_key = get_env("OPENAI_API_KEY", "")
     model = get_env("OPENAI_MODEL", "gpt-4.1-mini")
@@ -56,12 +57,17 @@ def generate_llm_response(
         fallback_response=fallback_response,
     )
 
+    # Build messages with conversation history for memory
+    safe_history = [
+        {"role": h["role"], "content": mask_pii_text(str(h["content"]))}
+        for h in (history or [])[-8:]
+        if h.get("role") in {"user", "assistant"} and h.get("content")
+    ]
+    messages = [{"role": "system", "content": SYSTEM_PROMPT}] + safe_history + [{"role": "user", "content": user_input}]
+
     payload = {
         "model": model,
-        "input": [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": user_input},
-        ],
+        "input": messages,
         "temperature": 0.2,
         "max_output_tokens": 450,
     }
