@@ -212,6 +212,9 @@ class DeBianHandler(BaseHTTPRequestHandler):
             except Exception as e:
                 return send_json(self, 500, {"error": str(e)})
 
+        if path == "/upload-document":
+            return _handle_upload_document(self)
+
         try:
             payload = self.read_json()
 
@@ -305,6 +308,179 @@ DOCS_HTML = """
 </body>
 </html>
 """
+
+
+def _handle_upload_document(handler: BaseHTTPRequestHandler) -> None:
+    """
+    POST /upload-document  (multipart/form-data)
+    Fields:
+      file     – the uploaded file (image or document)
+      message  – optional user question about the file
+      language – optional language code (default: en)
+    Returns JSON with the LLM analysis and, when a ticket is detected,
+    structured rail-specific advice (delay status, compensation hints).
+    """
+    import re, base64, urllib.request as _ur, mimetypes
+
+    ct = handler.headers.get("Content-Type", "")
+    m = re.search(r"boundary=([^\s;]+)", ct)
+    if not m:
+        return send_json(handler, 400, {"error": "multipart boundary not found"})
+
+    boundary = m.group(1).encode()
+    raw = handler.rfile.read(int(handler.headers.get("Content-Length", "0")))
+
+    # ── parse multipart parts ────────────────────────────────────────────
+    file_data = b""
+    file_name = "upload"
+    file_mime = "application/octet-stream"
+    user_message = ""
+    language = "en"
+
+    for part in raw.split(b"--" + boundary):
+        if not part.strip() or part.strip() == b"--":
+            continue
+        sep = b"\r\n\r\n"
+        idx = part.find(sep)
+        if idx == -1:
+            continue
+        header_block = part[:idx].decode("utf-8", errors="ignore")
+        body = part[idx + 4:].rstrip(b"\r\n")
+
+        disp_m = re.search(r'name="([^"]+)"', header_block)
+        if not disp_m:
+            continue
+        field_name = disp_m.group(1)
+
+        if field_name == "file":
+            fn_m = re.search(r'filename="([^"]+)"', header_block)
+            file_name = fn_m.group(1) if fn_m else "upload"
+            ct_m = re.search(r"Content-Type:\s*(\S+)", header_block, re.IGNORECASE)
+            file_mime = ct_m.group(1).strip() if ct_m else (
+                mimetypes.guess_type(file_name)[0] or "application/octet-stream"
+            )
+            file_data = body
+        elif field_name == "message":
+            user_message = body.decode("utf-8", errors="ignore").strip()
+        elif field_name == "language":
+            language = body.decode("utf-8", errors="ignore").strip() or "en"
+
+    if not file_data:
+        return send_json(handler, 400, {"error": "No file received"})
+
+    api_key = os.environ.get("OPENAI_API_KEY", "")
+    model   = os.environ.get("OPENAI_MODEL", "gpt-4.1-mini")
+
+    # ── build vision / document content for the LLM ──────────────────────
+    b64 = base64.b64encode(file_data).decode()
+    is_image = file_mime.startswith("image/")
+    is_pdf   = file_mime == "application/pdf"
+
+    SYSTEM = (
+        "You are DeBian, a smart Digital Rail Assistant specialising in Deutsche Bahn "
+        "and European rail travel. A passenger has uploaded a document or image. "
+        "Analyse it carefully.\n\n"
+        "If it is a train ticket or booking confirmation:\n"
+        "  • Extract: train number, origin, destination, departure date/time, arrival, seat, price, booking reference.\n"
+        "  • Then call the delay lookup in your mind (use plausible demo data if you cannot connect) "
+        "    and say whether the train is likely on time or delayed.\n"
+        "  • If the delay is ≥60 min or the trip was cancelled, explain exactly how to raise a "
+        "    compensation claim (EU Regulation 1371/2007 / §17 ERegG): amounts, deadlines, steps.\n\n"
+        "If it is any other document (invoice, ID, schedule, photo, etc.):\n"
+        "  • Summarise what you see and offer rail-related help where relevant.\n\n"
+        "Be concise, helpful, and reply in the passenger's language."
+    )
+
+    prompt = user_message if user_message else (
+        "Please analyse this document and help me with any rail-related information."
+    )
+
+    if is_image:
+        user_content = [
+            {
+                "type": "input_image",
+                "image_url": f"data:{file_mime};base64,{b64}",
+            },
+            {"type": "input_text", "text": prompt},
+        ]
+    elif is_pdf:
+        # Responses API supports file input for PDFs
+        user_content = [
+            {
+                "type": "input_file",
+                "filename": file_name,
+                "file_data": f"data:application/pdf;base64,{b64}",
+            },
+            {"type": "input_text", "text": prompt},
+        ]
+    else:
+        # Plain text / other: send raw decoded text
+        try:
+            text_content = file_data.decode("utf-8", errors="replace")
+        except Exception:
+            text_content = "(binary file – could not decode)"
+        user_content = [
+            {"type": "input_text", "text": f"File name: {file_name}\n\nContent:\n{text_content[:6000]}\n\n{prompt}"},
+        ]
+
+    if not api_key:
+        # Fallback: no LLM – return structured acknowledgement
+        return send_json(handler, 200, {
+            "analysis": (
+                f"I received your file '{file_name}' ({file_mime}, {len(file_data):,} bytes). "
+                "To get a full AI analysis of your document — including ticket details, delay status "
+                "and compensation guidance — please configure OPENAI_API_KEY in your .env file."
+            ),
+            "file_name": file_name,
+            "file_mime": file_mime,
+            "file_size": len(file_data),
+            "used_llm": False,
+        })
+
+    payload = {
+        "model": model,
+        "input": [
+            {"role": "system", "content": SYSTEM},
+            {"role": "user",   "content": user_content},
+        ],
+        "max_output_tokens": 600,
+        "temperature": 0.2,
+    }
+
+    try:
+        req = _ur.Request(
+            "https://api.openai.com/v1/responses",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            method="POST",
+        )
+        with _ur.urlopen(req, timeout=45) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+
+        # extract text from Responses API shape
+        texts = []
+        for item in data.get("output", []):
+            for content in item.get("content", []):
+                if content.get("type") in {"output_text", "text"} and isinstance(content.get("text"), str):
+                    texts.append(content["text"])
+        if not texts and isinstance(data.get("output_text"), str):
+            texts = [data["output_text"]]
+
+        analysis = "\n".join(texts).strip() or "I could not analyse this document."
+
+        return send_json(handler, 200, {
+            "analysis": analysis,
+            "file_name": file_name,
+            "file_mime": file_mime,
+            "file_size": len(file_data),
+            "used_llm": True,
+        })
+
+    except Exception as exc:
+        return send_json(handler, 500, {"error": f"LLM call failed: {exc}", "used_llm": False})
 
 
 def run() -> None:

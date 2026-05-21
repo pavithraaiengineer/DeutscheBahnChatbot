@@ -240,7 +240,14 @@ FALLBACK_HTML = r"""
     .row { display:flex; gap:10px; margin-top:14px; align-items:stretch; }
     .row #input { flex:1 !important; width:auto !important; min-width:0; margin:0; }
     .row #btn-mic { flex:0 0 52px !important; width:52px !important; margin:0; padding:0; }
+    .row #btn-upload { flex:0 0 52px !important; width:52px !important; margin:0; padding:0; }
     .row #btn-send { flex:0 0 130px !important; width:130px !important; margin:0; }
+    #btn-upload { flex-shrink:0; width:52px; background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.14); border-radius:14px; cursor:pointer; color:white; display:inline-flex; align-items:center; justify-content:center; user-select:none; -webkit-user-select:none; transition:background .15s; }
+    #btn-upload:hover { background:rgba(255,255,255,.22); }
+    #file-preview { margin-top:10px; display:none; background:rgba(255,255,255,.07); border:1px solid var(--border); border-radius:14px; padding:10px 14px; font-size:13px; color:var(--muted); position:relative; }
+    #file-preview .fp-name { color:white; font-weight:bold; margin-bottom:4px; }
+    #file-preview img { max-height:120px; border-radius:8px; margin-top:6px; display:block; }
+    #file-preview .fp-clear { position:absolute; top:8px; right:10px; cursor:pointer; color:var(--muted); font-size:18px; line-height:1; }
     #btn-mic { flex-shrink:0; width:52px; background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.14); border-radius:14px; cursor:pointer; color:white; display:inline-flex; align-items:center; justify-content:center; user-select:none; -webkit-user-select:none; transition:background .15s; }
     #btn-mic.recording { background:#e30613; border-color:#e30613; animation:pulse .8s infinite; }
     @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.55} }
@@ -272,7 +279,12 @@ FALLBACK_HTML = r"""
     <button id="btn-human" onclick="human()">☎️ Human assistance</button>
   </div>
   <div id="chat" class="chat"></div>
-  <div class="row"><input id="input" placeholder="Type here..." onkeydown="if(event.key==='Enter')send()" /><button id="btn-mic" onmousedown="micStart(event)" onmouseup="micStop()" onmouseleave="micStop()" ontouchstart="micStart(event)" ontouchend="micStop()"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="11" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/></svg></button><button onclick="send()" id="btn-send">Send</button></div>
+  <div id="file-preview">
+    <span class="fp-clear" onclick="clearFile()">✕</span>
+    <div class="fp-name" id="fp-name"></div>
+    <div id="fp-img-wrap"></div>
+  </div>
+  <div class="row"><input id="input" placeholder="Type here..." onkeydown="if(event.key==='Enter')send()" /><button id="btn-upload" onclick="document.getElementById('file-input').click()" title="Upload document or image"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg></button><input type="file" id="file-input" accept="image/*,.pdf,.txt,.doc,.docx" style="display:none" onchange="onFileSelected(this)"/><button id="btn-mic" onmousedown="micStart(event)" onmouseup="micStop()" onmouseleave="micStop()" ontouchstart="micStart(event)" ontouchend="micStop()"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="11" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/></svg></button><button onclick="send()" id="btn-send">Send</button></div>
 </section>
 </main>
 <script>
@@ -492,6 +504,75 @@ function micStart(e) {
 function micStop() {
   if (_mr && _mr.state === 'recording') _mr.stop();
 }
+
+// -----------------------------------------------------------------------
+// Document / image upload
+// -----------------------------------------------------------------------
+var _pendingFile = null;
+
+function onFileSelected(input) {
+  var file = input.files && input.files[0];
+  if (!file) return;
+  _pendingFile = file;
+  var preview = document.getElementById('file-preview');
+  document.getElementById('fp-name').innerText = file.name + ' (' + (file.size > 1024*1024 ? (file.size/1024/1024).toFixed(1)+'MB' : Math.round(file.size/1024)+'KB') + ')';
+  var wrap = document.getElementById('fp-img-wrap');
+  wrap.innerHTML = '';
+  if (file.type.startsWith('image/')) {
+    var img = document.createElement('img');
+    img.src = URL.createObjectURL(file);
+    wrap.appendChild(img);
+  }
+  preview.style.display = 'block';
+  // hint the user they can optionally type a question
+  document.getElementById('input').placeholder = 'Ask something about this file, or press Send…';
+}
+
+function clearFile() {
+  _pendingFile = null;
+  document.getElementById('file-preview').style.display = 'none';
+  document.getElementById('fp-img-wrap').innerHTML = '';
+  document.getElementById('fp-name').innerText = '';
+  document.getElementById('file-input').value = '';
+  document.getElementById('input').placeholder = 'Type here...';
+}
+
+async function uploadFile(file, question) {
+  var fd = new FormData();
+  fd.append('file', file, file.name);
+  if (question) fd.append('message', question);
+  fd.append('language', lang());
+  var inp = document.getElementById('input');
+  inp.disabled = true;
+  try {
+    var r = await fetch(api() + '/upload-document', {method: 'POST', body: fd});
+    var d = await r.json();
+    if (d.error) {
+      add('bot', '⚠️ Upload error: ' + d.error);
+    } else {
+      add('bot', '📎 ' + (d.file_name || file.name) + '\n\n' + (d.analysis || 'No analysis returned.'));
+    }
+  } catch(e) {
+    add('bot', '⚠️ Could not reach backend for document analysis: ' + e.message);
+  }
+  inp.disabled = false;
+  inp.focus();
+  clearFile();
+}
+
+// Override send() to handle pending file
+var _origSend = send;
+send = async function() {
+  if (_pendingFile) {
+    var q = document.getElementById('input').value.trim();
+    if (q) add('user', '📎 ' + _pendingFile.name + '\n' + q);
+    else   add('user', '📎 ' + _pendingFile.name);
+    document.getElementById('input').value = '';
+    await uploadFile(_pendingFile, q);
+    return;
+  }
+  await _origSend();
+};
 
 // Boot
 // -----------------------------------------------------------------------
