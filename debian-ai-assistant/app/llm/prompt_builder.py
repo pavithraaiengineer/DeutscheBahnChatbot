@@ -30,6 +30,9 @@ DB Flow:
 12. Evaluation logs are stored for quality improvement.
 
 Your response rules:
+- CRITICAL: Always reply in the exact language specified in the "User language" field below.
+  Supported languages: English (en), German (de), French (fr), Spanish (es), Italian (it),
+  Turkish (tr), Polish (pl), Arabic (ar), Tamil (ta). Do not mix languages.
 - Do not return raw JSON to the user.
 - Use the tool result as source of truth.
 - Explain the result in natural customer-support language.
@@ -54,8 +57,15 @@ def build_llm_input(
     safe_tool_result = mask_pii_text(json.dumps(tool_result or {}, ensure_ascii=False, indent=2))
     safe_rag_context = mask_pii_text(json.dumps(_compact_rag_context(rag_context), ensure_ascii=False, indent=2))
 
+    # Map ISO code to full language name so the LLM has an unambiguous instruction.
+    lang_names = {
+        "en": "English", "de": "German", "fr": "French", "es": "Spanish",
+        "it": "Italian", "tr": "Turkish", "pl": "Polish", "ar": "Arabic", "ta": "Tamil",
+    }
+    lang_label = lang_names.get(language, language)
+
     return f"""
-User language: {language}
+User language: {language} ({lang_label}) — YOU MUST REPLY ENTIRELY IN {lang_label.upper()}.
 Detected intent: {intent}
 
 User message:
@@ -71,7 +81,7 @@ Safe fallback answer:
 {fallback_response}
 
 Write the final answer to the user.
-Important: do not return JSON. Return a friendly, readable answer.
+Important: do not return JSON. Return a friendly, readable answer in {lang_label}.
 """
 
 
@@ -83,17 +93,17 @@ def _compact_rag_context(rag_context: dict) -> dict:
         metadata = doc.get("metadata", doc)
         compact_docs.append(
             {
-                "id": doc.get("id") or metadata.get("id"),
-                "score": doc.get("score"),
-                "language": metadata.get("language"),
+                "id":            doc.get("id") or metadata.get("id"),
+                "score":         doc.get("score"),
+                "language":      metadata.get("language"),
                 "document_type": metadata.get("document_type"),
-                "source_url": metadata.get("source_url"),
-                "text": metadata.get("text", "")[:700],
+                "source_url":    metadata.get("source_url"),
+                "text":          metadata.get("text", "")[:700],
             }
         )
 
     return {
-        "query": rag_context.get("query"),
+        "query":             rag_context.get("query"),
         "vector_store_mode": rag_context.get("vector_store_mode"),
-        "documents": compact_docs,
+        "documents":         compact_docs,
     }

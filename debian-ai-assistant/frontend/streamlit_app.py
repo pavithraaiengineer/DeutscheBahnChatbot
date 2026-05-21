@@ -2,7 +2,7 @@
 DeBian guided frontend.
 
 Run:
-    python frontend\streamlit_app.py
+    python frontend\\streamlit_app.py
 
 Open:
     http://127.0.0.1:8501
@@ -12,6 +12,210 @@ from __future__ import annotations
 
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+
+# ---------------------------------------------------------------------------
+# Per-language UI strings for the guided claim flow
+# ---------------------------------------------------------------------------
+
+LANG_OPTIONS = [
+    ("en", "English"),
+    ("de", "Deutsch"),
+    ("fr", "Français"),
+    ("es", "Español"),
+    ("it", "Italiano"),
+    ("tr", "Türkçe"),
+    ("pl", "Polski"),
+    ("ar", "العربية"),
+    ("ta", "தமிழ்"),
+]
+
+GUIDED: dict[str, dict[str, str]] = {
+    "en": {
+        "greet1":        "Hello! 👋 I am DeBian, your Digital Rail Assistant.",
+        "greet2":        "Choose: Book a ticket, Claim compensation, Check delay, or Human assistance.",
+        "book":          "Please tell me origin, destination, date, and preferred time.",
+        "claim_start":   "I will guide your compensation claim step by step.\n\nWhat is your train number?\nExample: ICE 572",
+        "delay_start":   "Enter train number.\nExample: ICE 572, ICE 999, or RE 50",
+        "ask_station":   "Which station should I use?\nExample: Frankfurt(Main)Hbf",
+        "ask_planned":   "What was your planned start time?\nExample: 2026-05-20T10:00:00",
+        "ask_actual":    "What was the actual start time?\nYou can also type: not started",
+        "ask_delay":     "How many minutes was the delay?\nExample: 95",
+        "ask_alt":       "Which alternative travel option did you use?\nExample: Regional train, next ICE, bus, taxi, or none",
+        "ask_price":     "What was the ticket price in EUR?\nExample: 80",
+        "ask_refund":    "How would you like to receive compensation?\nType: bank_account or voucher",
+        "ask_iban":      "Please enter your IBAN/account number.\nI will only show the last 4 digits.",
+        "ask_address":   "Please enter your home address for voucher confirmation.",
+        "not_started_kw": "not",
+        "bank_kw":       "bank_account",
+        "voucher_kw":    "voucher",
+    },
+    "de": {
+        "greet1":        "Hallo! 👋 Ich bin DeBian, Ihr digitaler Bahnassistent.",
+        "greet2":        "Wählen Sie: Ticket buchen, Entschädigung beantragen, Verspätung prüfen oder menschliche Unterstützung.",
+        "book":          "Bitte nennen Sie Abfahrtsort, Ziel, Datum und bevorzugte Uhrzeit.",
+        "claim_start":   "Ich führe Sie Schritt für Schritt durch Ihren Entschädigungsantrag.\n\nWie lautet Ihre Zugnummer?\nBeispiel: ICE 572",
+        "delay_start":   "Zugnummer eingeben.\nBeispiel: ICE 572, ICE 999 oder RE 50",
+        "ask_station":   "Welchen Bahnhof soll ich verwenden?\nBeispiel: Frankfurt(Main)Hbf",
+        "ask_planned":   "Wann war Ihre geplante Startzeit?\nBeispiel: 2026-05-20T10:00:00",
+        "ask_actual":    "Wann ist der Zug tatsächlich abgefahren?\nSie können auch tippen: nicht gestartet",
+        "ask_delay":     "Wie viele Minuten betrug die Verspätung?\nBeispiel: 95",
+        "ask_alt":       "Welche alternative Reiseoption haben Sie genutzt?\nBeispiel: Regionalzug, nächster ICE, Bus, Taxi oder keine",
+        "ask_price":     "Wie hoch war der Ticketpreis in EUR?\nBeispiel: 80",
+        "ask_refund":    "Wie möchten Sie Ihre Entschädigung erhalten?\nEingabe: bank_account oder voucher",
+        "ask_iban":      "Bitte geben Sie Ihre IBAN / Kontonummer ein.\nIch zeige nur die letzten 4 Ziffern.",
+        "ask_address":   "Bitte geben Sie Ihre Heimadresse für den Gutscheinversand ein.",
+        "not_started_kw": "nicht",
+        "bank_kw":       "bank_account",
+        "voucher_kw":    "voucher",
+    },
+    "fr": {
+        "greet1":        "Bonjour ! 👋 Je suis DeBian, votre assistant ferroviaire numérique.",
+        "greet2":        "Choisissez : Réserver un billet, Demander une indemnisation, Vérifier un retard ou Assistance humaine.",
+        "book":          "Veuillez indiquer l'origine, la destination, la date et l'heure souhaitée.",
+        "claim_start":   "Je vais vous guider étape par étape dans votre demande d'indemnisation.\n\nQuel est votre numéro de train ?\nExemple : ICE 572",
+        "delay_start":   "Entrez le numéro de train.\nExemple : ICE 572, ICE 999 ou RE 50",
+        "ask_station":   "Quelle gare dois-je utiliser ?\nExemple : Frankfurt(Main)Hbf",
+        "ask_planned":   "Quelle était votre heure de départ prévue ?\nExemple : 2026-05-20T10:00:00",
+        "ask_actual":    "Quelle était l'heure de départ réelle ?\nVous pouvez aussi taper : non parti",
+        "ask_delay":     "Combien de minutes de retard ?\nExemple : 95",
+        "ask_alt":       "Quel transport alternatif avez-vous utilisé ?\nExemple : train régional, ICE suivant, bus, taxi ou aucun",
+        "ask_price":     "Quel était le prix du billet en EUR ?\nExemple : 80",
+        "ask_refund":    "Comment souhaitez-vous recevoir l'indemnisation ?\nTapez : bank_account ou voucher",
+        "ask_iban":      "Veuillez entrer votre IBAN / numéro de compte.\nJe n'afficherai que les 4 derniers chiffres.",
+        "ask_address":   "Veuillez entrer votre adresse pour la livraison du bon.",
+        "not_started_kw": "non",
+        "bank_kw":       "bank_account",
+        "voucher_kw":    "voucher",
+    },
+    "es": {
+        "greet1":        "¡Hola! 👋 Soy DeBian, su asistente ferroviario digital.",
+        "greet2":        "Elija: Reservar billete, Reclamar compensación, Consultar retraso o Asistencia humana.",
+        "book":          "Indíqueme origen, destino, fecha y hora preferida.",
+        "claim_start":   "Le guiaré paso a paso en su reclamación.\n\n¿Cuál es el número de su tren?\nEjemplo: ICE 572",
+        "delay_start":   "Escriba el número del tren.\nEjemplo: ICE 572, ICE 999 o RE 50",
+        "ask_station":   "¿Qué estación debo usar?\nEjemplo: Frankfurt(Main)Hbf",
+        "ask_planned":   "¿Cuál era la hora de salida prevista?\nEjemplo: 2026-05-20T10:00:00",
+        "ask_actual":    "¿Cuándo salió realmente el tren?\nTambién puede escribir: no salió",
+        "ask_delay":     "¿Cuántos minutos de retraso?\nEjemplo: 95",
+        "ask_alt":       "¿Qué transporte alternativo utilizó?\nEjemplo: tren regional, siguiente ICE, autobús, taxi o ninguno",
+        "ask_price":     "¿Cuál fue el precio del billete en EUR?\nEjemplo: 80",
+        "ask_refund":    "¿Cómo desea recibir la compensación?\nEscriba: bank_account o voucher",
+        "ask_iban":      "Introduzca su IBAN / número de cuenta.\nSolo mostraré los últimos 4 dígitos.",
+        "ask_address":   "Introduzca su dirección para el envío del bono.",
+        "not_started_kw": "no",
+        "bank_kw":       "bank_account",
+        "voucher_kw":    "voucher",
+    },
+    "it": {
+        "greet1":        "Salve! 👋 Sono DeBian, il suo assistente ferroviario digitale.",
+        "greet2":        "Scelga: Prenota biglietto, Richiedi indennizzo, Verifica ritardo o Assistenza umana.",
+        "book":          "Indichi origine, destinazione, data e orario preferito.",
+        "claim_start":   "La guiderò passo dopo passo nella sua richiesta di indennizzo.\n\nQual è il numero del suo treno?\nEsempio: ICE 572",
+        "delay_start":   "Inserisca il numero del treno.\nEsempio: ICE 572, ICE 999 o RE 50",
+        "ask_station":   "Quale stazione devo usare?\nEsempio: Frankfurt(Main)Hbf",
+        "ask_planned":   "Qual era l'orario di partenza previsto?\nEsempio: 2026-05-20T10:00:00",
+        "ask_actual":    "A che ora è partito effettivamente il treno?\nPuò anche scrivere: non partito",
+        "ask_delay":     "Quanti minuti di ritardo?\nEsempio: 95",
+        "ask_alt":       "Quale trasporto alternativo ha usato?\nEsempio: treno regionale, ICE successivo, bus, taxi o nessuno",
+        "ask_price":     "Qual era il prezzo del biglietto in EUR?\nEsempio: 80",
+        "ask_refund":    "Come desidera ricevere l'indennizzo?\nScriva: bank_account o voucher",
+        "ask_iban":      "Inserisca il suo IBAN / numero di conto.\nMostrerò solo le ultime 4 cifre.",
+        "ask_address":   "Inserisca il suo indirizzo per la consegna del voucher.",
+        "not_started_kw": "non",
+        "bank_kw":       "bank_account",
+        "voucher_kw":    "voucher",
+    },
+    "tr": {
+        "greet1":        "Merhaba! 👋 Ben DeBian, dijital demiryolu asistanınız.",
+        "greet2":        "Seçin: Bilet rezervasyonu, Tazminat talebi, Gecikme sorgulama veya İnsan desteği.",
+        "book":          "Lütfen kalkış yeri, varış yeri, tarih ve tercih edilen saati belirtin.",
+        "claim_start":   "Tazminat talebinizde size adım adım rehberlik edeceğim.\n\nTren numaranız nedir?\nÖrnek: ICE 572",
+        "delay_start":   "Tren numarası girin.\nÖrnek: ICE 572, ICE 999 veya RE 50",
+        "ask_station":   "Hangi istasyonu kullanmalıyım?\nÖrnek: Frankfurt(Main)Hbf",
+        "ask_planned":   "Planlanan kalkış saatiniz neydi?\nÖrnek: 2026-05-20T10:00:00",
+        "ask_actual":    "Tren gerçekte ne zaman kalktı?\nAyrıca yazabilirsiniz: kalkmadı",
+        "ask_delay":     "Kaç dakika gecikti?\nÖrnek: 95",
+        "ask_alt":       "Hangi alternatif ulaşımı kullandınız?\nÖrnek: bölgesel tren, sonraki ICE, otobüs, taksi veya hiçbiri",
+        "ask_price":     "Bilet fiyatı EUR cinsinden ne kadardı?\nÖrnek: 80",
+        "ask_refund":    "Tazminatı nasıl almak istersiniz?\nYazın: bank_account veya voucher",
+        "ask_iban":      "IBAN / hesap numaranızı girin.\nYalnızca son 4 haneyi göstereceğim.",
+        "ask_address":   "Kupon teslimi için ev adresinizi girin.",
+        "not_started_kw": "kalkmadı",
+        "bank_kw":       "bank_account",
+        "voucher_kw":    "voucher",
+    },
+    "pl": {
+        "greet1":        "Cześć! 👋 Jestem DeBian, Twój cyfrowy asystent kolejowy.",
+        "greet2":        "Wybierz: Rezerwacja biletu, Roszczenie odszkodowania, Sprawdź opóźnienie lub Wsparcie ludzkie.",
+        "book":          "Podaj miejsce odjazdu, cel, datę i preferowaną godzinę.",
+        "claim_start":   "Poprowadzę Cię krok po kroku przez wniosek o odszkodowanie.\n\nJaki jest numer Twojego pociągu?\nPrzykład: ICE 572",
+        "delay_start":   "Wpisz numer pociągu.\nPrzykład: ICE 572, ICE 999 lub RE 50",
+        "ask_station":   "Której stacji użyć?\nPrzykład: Frankfurt(Main)Hbf",
+        "ask_planned":   "Jaki był planowy czas odjazdu?\nPrzykład: 2026-05-20T10:00:00",
+        "ask_actual":    "Kiedy faktycznie odjechał pociąg?\nMożesz też napisać: nie odjechał",
+        "ask_delay":     "Ile minut wynosiło opóźnienie?\nPrzykład: 95",
+        "ask_alt":       "Z jakiego alternatywnego transportu korzystałeś?\nPrzykład: pociąg regionalny, następny ICE, autobus, taksówka lub żaden",
+        "ask_price":     "Jaka była cena biletu w EUR?\nPrzykład: 80",
+        "ask_refund":    "Jak chcesz otrzymać odszkodowanie?\nWpisz: bank_account lub voucher",
+        "ask_iban":      "Wprowadź swój IBAN / numer konta.\nPokaże tylko ostatnie 4 cyfry.",
+        "ask_address":   "Wprowadź swój adres domowy do wysyłki kuponu.",
+        "not_started_kw": "nie",
+        "bank_kw":       "bank_account",
+        "voucher_kw":    "voucher",
+    },
+    "ar": {
+        "greet1":        "مرحباً! 👋 أنا DeBian، مساعدك الرقمي للسكك الحديدية.",
+        "greet2":        "اختر: حجز تذكرة، طلب تعويض، التحقق من التأخير، أو دعم بشري.",
+        "book":          "يرجى إخباري بنقطة الانطلاق والوجهة والتاريخ والوقت المفضل.",
+        "claim_start":   "سأرشدك خطوة بخطوة في طلب التعويض.\n\nما هو رقم قطارك؟\nمثال: ICE 572",
+        "delay_start":   "أدخل رقم القطار.\nمثال: ICE 572 أو ICE 999 أو RE 50",
+        "ask_station":   "أي محطة يجب أن أستخدم؟\nمثال: Frankfurt(Main)Hbf",
+        "ask_planned":   "ما كان وقت المغادرة المخطط؟\nمثال: 2026-05-20T10:00:00",
+        "ask_actual":    "متى غادر القطار فعلياً؟\nيمكنك أيضاً كتابة: لم يغادر",
+        "ask_delay":     "كم دقيقة كان التأخير؟\nمثال: 95",
+        "ask_alt":       "ما وسيلة النقل البديلة التي استخدمتها؟\nمثال: قطار إقليمي، ICE التالي، حافلة، تاكسي، أو لا شيء",
+        "ask_price":     "ما كان سعر التذكرة بالـ EUR؟\nمثال: 80",
+        "ask_refund":    "كيف تريد استلام التعويض؟\nاكتب: bank_account أو voucher",
+        "ask_iban":      "أدخل رقم IBAN / الحساب.\nسأعرض فقط آخر 4 أرقام.",
+        "ask_address":   "أدخل عنوانك المنزلي لتسليم القسيمة.",
+        "not_started_kw": "لم",
+        "bank_kw":       "bank_account",
+        "voucher_kw":    "voucher",
+    },
+    "ta": {
+        "greet1":        "வணக்கம்! 👋 நான் DeBian, உங்கள் டிஜிட்டல் ரயில் உதவியாளர்.",
+        "greet2":        "தேர்வு செய்யுங்கள்: டிக்கெட் புக் செய்யுங்கள், இழப்பீடு கோரிக்கை, தாமத சோதனை அல்லது மனித ஆதரவு.",
+        "book":          "தொடக்க இடம், இலக்கு, தேதி மற்றும் விரும்பிய நேரம் தெரிவிக்கவும்.",
+        "claim_start":   "இழப்பீடு கோரிக்கையில் படிப்படியாக உங்களுக்கு வழிகாட்டுவேன்.\n\nரயில் எண் என்ன?\nஉதாரணம்: ICE 572",
+        "delay_start":   "ரயில் எண் உள்ளிடவும்.\nஉதாரணம்: ICE 572, ICE 999 அல்லது RE 50",
+        "ask_station":   "எந்த நிலையம் பயன்படுத்த வேண்டும்?\nஉதாரணம்: Frankfurt(Main)Hbf",
+        "ask_planned":   "திட்டமிட்ட புறப்பாடு நேரம் என்ன?\nஉதாரணம்: 2026-05-20T10:00:00",
+        "ask_actual":    "ரயில் உண்மையில் எப்போது புறப்பட்டது?\nடைப் செய்யலாம்: புறப்படவில்லை",
+        "ask_delay":     "தாமதம் எத்தனை நிமிடங்கள்?\nஉதாரணம்: 95",
+        "ask_alt":       "எந்த மாற்று போக்குவரத்து பயன்படுத்தினீர்கள்?\nஉதாரணம்: பிராந்திய ரயில், அடுத்த ICE, பேருந்து, டாக்சி அல்லது எதுவும் இல்லை",
+        "ask_price":     "டிக்கெட் விலை EUR இல் என்ன?\nஉதாரணம்: 80",
+        "ask_refund":    "இழப்பீடு எவ்வாறு பெற விரும்புகிறீர்கள்?\nடைப் செய்யுங்கள்: bank_account அல்லது voucher",
+        "ask_iban":      "உங்கள் IBAN / கணக்கு எண் உள்ளிடவும்.\nகடைசி 4 இலக்கங்கள் மட்டும் காட்டுவேன்.",
+        "ask_address":   "கூப்பன் டெலிவரிக்கான முகவரி உள்ளிடவும்.",
+        "not_started_kw": "இல்லை",
+        "bank_kw":       "bank_account",
+        "voucher_kw":    "voucher",
+    },
+}
+
+
+def _g(lang: str, key: str) -> str:
+    """Return a guided-flow string for *lang*, falling back to English."""
+    return GUIDED.get(lang, GUIDED["en"]).get(key, GUIDED["en"][key])
+
+
+# ---------------------------------------------------------------------------
+# HTML template — language select now has all 9 options
+# ---------------------------------------------------------------------------
+
+_LANG_OPTIONS_HTML = "\n".join(
+    f'<option value="{code}">{label}</option>' for code, label in LANG_OPTIONS
+)
 
 FALLBACK_HTML = r"""
 <!DOCTYPE html>
@@ -44,44 +248,71 @@ FALLBACK_HTML = r"""
   <h1>De<span>Bi</span>an</h1>
   <p>Your Digital Rail Assistant</p>
   <input id="apiBase" value="http://127.0.0.1:8000" />
-  <select id="language"><option value="en">English</option><option value="de">Deutsch</option><option value="ta">தமிழ்</option></select>
+  <select id="language" onchange="onLangChange()">
+""" + _LANG_OPTIONS_HTML + r"""
+  </select>
   <button class="secondary" onclick="checkBackend()">Check Backend</button>
   <button class="secondary" onclick="runETL()">Run ETL</button>
   <button class="secondary" onclick="infra()">Infra Status</button>
   <p id="status" class="hint">Start backend first: python -m app.main</p>
 </section>
 <section>
-  <h2>Hello Example user 👋</h2>
-  <p class="hint">I am DeBian. I can help with delay checks, compensation claims, alternative routes, and human support.</p>
+  <h2 id="hdr-title">Hello! 👋</h2>
+  <p class="hint" id="hdr-sub">I am DeBian. I can help with delay checks, compensation claims, alternative routes, and human support.</p>
   <div class="quick">
-    <button onclick="book()">🎫 Book a ticket</button>
-    <button onclick="startClaim()">💶 Claim compensation</button>
-    <button onclick="startDelay()">🚆 Check delay</button>
-    <button onclick="human()">☎️ Human assistance</button>
+    <button id="btn-book" onclick="book()">🎫 Book a ticket</button>
+    <button id="btn-claim" onclick="startClaim()">💶 Claim compensation</button>
+    <button id="btn-delay" onclick="startDelay()">🚆 Check delay</button>
+    <button id="btn-human" onclick="human()">☎️ Human assistance</button>
   </div>
   <div id="chat" class="chat"></div>
-  <div class="row"><input id="input" placeholder="Type here..." onkeydown="if(event.key==='Enter')send()" /><button onclick="send()">Send</button></div>
+  <div class="row"><input id="input" placeholder="Type here..." onkeydown="if(event.key==='Enter')send()" /><button onclick="send()" id="btn-send">Send</button></div>
 </section>
 </main>
 <script>
-let step=null, claim={};
+// -----------------------------------------------------------------------
+// Guided-flow string tables (mirrors backend GUIDED dict)
+// -----------------------------------------------------------------------
+const GUIDED = """ + str(GUIDED).replace("True", "true").replace("False", "false").replace("None", "null") + r""";
 
-function api(){return document.getElementById("apiBase").value.replace(/\/$/,"")}
-function lang(){return document.getElementById("language").value}
-function add(role,text){
-  let d=document.createElement("div");
-  d.className="msg "+(role==="user"?"user":"bot");
-  d.innerText=text;
+function g(key){ return (GUIDED[lang()] || GUIDED["en"])[key] || GUIDED["en"][key]; }
+
+// -----------------------------------------------------------------------
+// State
+// -----------------------------------------------------------------------
+let step = null, claim = {};
+
+function api(){ return document.getElementById("apiBase").value.replace(/\/$/, ""); }
+function lang(){ return document.getElementById("language").value; }
+
+function add(role, text){
+  let d = document.createElement("div");
+  d.className = "msg " + (role === "user" ? "user" : "bot");
+  d.innerText = text;
   chat.appendChild(d);
-  chat.scrollTop=chat.scrollHeight;
+  chat.scrollTop = chat.scrollHeight;
 }
 
-async function post(path,payload){
-  let r=await fetch(api()+path,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+async function post(path, payload){
+  let r = await fetch(api() + path, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload)});
   return await r.json();
 }
-async function get(path){let r=await fetch(api()+path); return await r.json();}
+async function get(path){ let r = await fetch(api() + path); return await r.json(); }
 
+// -----------------------------------------------------------------------
+// Language change — reset chat to greeting in new language
+// -----------------------------------------------------------------------
+function onLangChange(){
+  step = null; claim = {};
+  chat.innerHTML = "";
+  add("bot", g("greet1"));
+  add("bot", g("greet2"));
+  document.getElementById("input").placeholder = lang() === "ar" ? "اكتب هنا..." : "Type here...";
+}
+
+// -----------------------------------------------------------------------
+// Response formatters (unchanged from original)
+// -----------------------------------------------------------------------
 function formatDelay(d){
   const train = d.train_number || "your train";
   if(d.status === "unknown"){
@@ -113,84 +344,106 @@ function formatClaim(r){
   return lines.join("\n");
 }
 
+// -----------------------------------------------------------------------
+// Sidebar actions
+// -----------------------------------------------------------------------
 async function checkBackend(){
   try{
-    let d=await get("/");
-    status.innerText="✅ "+d.service+" | LLM configured: "+d.config.llm_configured;
-  }catch(e){status.innerText="❌ Backend not reachable";}
+    let d = await get("/");
+    status.innerText = "✅ " + d.service + " | LLM configured: " + d.config.llm_configured;
+  } catch(e){ status.innerText = "❌ Backend not reachable"; }
 }
 async function runETL(){
-  let d=await get("/etl/run");
+  let d = await get("/etl/run");
   add("bot", `Data layer pipeline completed.\n\nBronze, Silver, and Gold layers were generated.\nPipeline: ${d.pipeline}`);
 }
 async function infra(){
-  let d=await get("/infra/status");
+  let d = await get("/infra/status");
   add("bot", `Infrastructure status checked.\n\nLLM configured: ${d.config.llm_configured}\nPinecone configured: ${d.config.pinecone_configured}\nDatabricks configured: ${d.config.databricks_configured}\nSession store: ${d.session_store.mode}`);
 }
 
-function book(){step=null; add("bot","Please tell me origin, destination, date, and preferred time.");}
+// -----------------------------------------------------------------------
+// Guided flows — use language-aware prompts
+// -----------------------------------------------------------------------
+function book(){ step = null; add("bot", g("book")); }
+
 function startClaim(){
-  step="train_number";
-  claim={language:lang(), claim_form:true};
-  add("bot","I will guide your compensation claim step by step.\n\nWhat is your train number?\nExample: ICE 572");
+  step = "train_number";
+  claim = {language: lang(), claim_form: true};
+  add("bot", g("claim_start"));
 }
-function startDelay(){step="delay_train"; add("bot","Enter train number.\nExample: ICE 572, ICE 999, or RE 50");}
+
+function startDelay(){ step = "delay_train"; add("bot", g("delay_start")); }
+
 async function human(){
-  const r = await post("/human-assistance",{language:lang(),reason:"customer clicked human assistance"});
-  add("bot", `I created a human assistance request.\nReference: ${r.handoff_id}\nStatus: ${r.handoff_status}`);
+  const r = await post("/human-assistance", {language: lang(), reason: "customer clicked human assistance"});
+  add("bot", `${g("greet1").split("!")[0]}!\nReference: ${r.handoff_id}\nStatus: ${r.handoff_status}`);
 }
 
 async function send(){
-  let t=input.value.trim();
-  if(!t)return;
-  add("user",t);
-  input.value="";
-  if(step){await guided(t); return;}
-  let r=await post("/assist",{message:t,language:lang()});
+  let t = input.value.trim();
+  if(!t) return;
+  add("user", t);
+  input.value = "";
+  if(step){ await guided(t); return; }
+  let r = await post("/assist", {message: t, language: lang()});
   add("bot", r.response + (r.used_llm ? "\n\nLLM: used" : "\n\nLLM: fallback mode"));
 }
 
 async function guided(t){
- if(step==="delay_train"){
-   const d = await get("/delay/"+encodeURIComponent(t));
-   add("bot", formatDelay(d));
-   step=null;
-   return;
- }
- if(step==="train_number"){claim.train_number=t; step="station_name"; add("bot","Which station should I use?\nExample: Frankfurt(Main)Hbf"); return;}
- if(step==="station_name"){claim.station_name=t; step="planned_start_time"; add("bot","What was your planned start time?\nExample: 2026-05-20T10:00:00"); return;}
- if(step==="planned_start_time"){claim.planned_start_time=t; step="actual"; add("bot","What was the actual start time?\nYou can also type: not started"); return;}
- if(step==="actual"){
-   if(t.toLowerCase().includes("not")){claim.trip_not_started=true; claim.actual_start_time=null;}
-   else{claim.trip_not_started=false; claim.actual_start_time=t;}
-   step="delay"; add("bot","How many minutes was the delay?\nExample: 95"); return;
- }
- if(step==="delay"){claim.delay_minutes=Number(t); step="alternative"; add("bot","Which alternative travel option did you use?\nExample: Regional train, next ICE, bus, taxi, or none"); return;}
- if(step==="alternative"){claim.alternative_transport=t||"none"; step="price"; add("bot","What was the ticket price in EUR?\nExample: 80"); return;}
- if(step==="price"){claim.ticket_price=Number(t.replace(",",".")); step="refund"; add("bot","How would you like to receive compensation?\nType: bank_account or voucher"); return;}
- if(step==="refund"){
-   claim.refund_method=t.toLowerCase();
-   if(claim.refund_method==="bank_account"){step="account"; add("bot","Please enter your IBAN/account number.\nI will only show the last 4 digits.");}
-   else{step="address"; add("bot","Please enter your home address for voucher confirmation.");}
-   return;
- }
- if(step==="account"){claim.account_number=t; claim.home_address=null; await submit(); return;}
- if(step==="address"){claim.home_address=t; claim.account_number=null; await submit(); return;}
-}
-async function submit(){
-  let r=await post("/claim",claim);
-  add("bot", formatClaim(r));
-  step=null; claim={};
+  const tl = t.toLowerCase();
+  const notStartedKw = g("not_started_kw");
+  const bankKw       = g("bank_kw");
+  const voucherKw    = g("voucher_kw");
+
+  if(step === "delay_train"){
+    const d = await get("/delay/" + encodeURIComponent(t));
+    add("bot", formatDelay(d));
+    step = null;
+    return;
+  }
+  if(step === "train_number")    { claim.train_number = t; step = "station_name";    add("bot", g("ask_station"));  return; }
+  if(step === "station_name")    { claim.station_name = t; step = "planned_start_time"; add("bot", g("ask_planned")); return; }
+  if(step === "planned_start_time"){ claim.planned_start_time = t; step = "actual"; add("bot", g("ask_actual")); return; }
+  if(step === "actual"){
+    if(tl.includes(notStartedKw)){ claim.trip_not_started = true; claim.actual_start_time = null; }
+    else { claim.trip_not_started = false; claim.actual_start_time = t; }
+    step = "delay"; add("bot", g("ask_delay")); return;
+  }
+  if(step === "delay")    { claim.delay_minutes = Number(t); step = "alternative"; add("bot", g("ask_alt"));    return; }
+  if(step === "alternative"){ claim.alternative_transport = t || "none"; step = "price"; add("bot", g("ask_price")); return; }
+  if(step === "price")    { claim.ticket_price = Number(t.replace(",", ".")); step = "refund"; add("bot", g("ask_refund")); return; }
+  if(step === "refund"){
+    claim.refund_method = tl.includes(bankKw) ? "bank_account" : "voucher";
+    if(claim.refund_method === "bank_account"){ step = "account"; add("bot", g("ask_iban")); }
+    else                                      { step = "address"; add("bot", g("ask_address")); }
+    return;
+  }
+  if(step === "account"){ claim.account_number = t; claim.home_address = null; await submit(); return; }
+  if(step === "address"){ claim.home_address = t; claim.account_number = null; await submit(); return; }
 }
 
-add("bot","Hello Example user 👋\n\nI am DeBian, your Digital Rail Assistant.");
-add("bot","Choose: Book a ticket, Claim compensation, Check delay, or Human assistance.");
+async function submit(){
+  let r = await post("/claim", claim);
+  add("bot", formatClaim(r));
+  step = null; claim = {};
+}
+
+// -----------------------------------------------------------------------
+// Boot
+// -----------------------------------------------------------------------
+add("bot", GUIDED["en"]["greet1"]);
+add("bot", GUIDED["en"]["greet2"]);
 </script>
 </body>
 </html>
 """
 
+
 class FallbackHandler(BaseHTTPRequestHandler):
+    def log_message(self, format: str, *args) -> None:  # suppress access logs
+        pass
+
     def do_GET(self) -> None:
         body = FALLBACK_HTML.encode("utf-8")
         self.send_response(200)
