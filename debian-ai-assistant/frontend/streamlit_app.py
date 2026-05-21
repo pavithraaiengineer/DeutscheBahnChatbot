@@ -237,7 +237,13 @@ FALLBACK_HTML = r"""
     .msg { max-width:84%; padding:12px 14px; border-radius:16px; margin:10px 0; white-space:pre-wrap; line-height:1.45; }
     .bot { background:rgba(255,255,255,.12); border:1px solid var(--border); }
     .user { background:var(--red); margin-left:auto; }
-    .row { display:grid; grid-template-columns:1fr 130px; gap:10px; margin-top:14px; }
+    .row { display:flex; gap:10px; margin-top:14px; align-items:stretch; }
+    .row #input { flex:1 !important; width:auto !important; min-width:0; margin:0; }
+    .row #btn-mic { flex:0 0 52px !important; width:52px !important; margin:0; padding:0; }
+    .row #btn-send { flex:0 0 130px !important; width:130px !important; margin:0; }
+    #btn-mic { flex-shrink:0; width:52px; background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.14); border-radius:14px; cursor:pointer; color:white; display:inline-flex; align-items:center; justify-content:center; user-select:none; -webkit-user-select:none; transition:background .15s; }
+    #btn-mic.recording { background:#e30613; border-color:#e30613; animation:pulse .8s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.55} }
     .hint { color:var(--muted); font-size:13px; line-height:1.4; }
     @media(max-width:900px){ main{grid-template-columns:1fr; padding:18px;} }
   </style>
@@ -266,7 +272,7 @@ FALLBACK_HTML = r"""
     <button id="btn-human" onclick="human()">☎️ Human assistance</button>
   </div>
   <div id="chat" class="chat"></div>
-  <div class="row"><input id="input" placeholder="Type here..." onkeydown="if(event.key==='Enter')send()" /><button onclick="send()" id="btn-send">Send</button></div>
+  <div class="row"><input id="input" placeholder="Type here..." onkeydown="if(event.key==='Enter')send()" /><button id="btn-mic" onmousedown="micStart(event)" onmouseup="micStop()" onmouseleave="micStop()" ontouchstart="micStart(event)" ontouchend="micStop()"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="11" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/></svg></button><button onclick="send()" id="btn-send">Send</button></div>
 </section>
 </main>
 <script>
@@ -430,6 +436,60 @@ async function submit(){
 }
 
 // -----------------------------------------------------------------------
+
+// -----------------------------------------------------------------------
+// Press-and-hold mic — records audio, sends to /transcribe (Whisper API)
+// Transcript fills the input box. User reviews then presses Send.
+// Only available when English or German is selected.
+// -----------------------------------------------------------------------
+var _mr = null, _chunks = [], _busy = false;
+
+function micStart(e) {
+  e.preventDefault();
+  var L = lang();
+  if (L !== 'en' && L !== 'de') { alert('Voice input is available in English and German only.'); return; }
+  if (_busy) return;
+  if (!navigator.mediaDevices) { alert('Microphone not available in this browser.'); return; }
+  navigator.mediaDevices.getUserMedia({audio: true}).then(function(stream) {
+    _busy = true; _chunks = [];
+    var btn = document.getElementById('btn-mic');
+    btn.classList.add('recording');
+    var mime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm';
+    _mr = new MediaRecorder(stream, {mimeType: mime});
+    _mr.ondataavailable = function(ev) { if (ev.data.size) _chunks.push(ev.data); };
+    _mr.onstop = function() {
+      stream.getTracks().forEach(function(t) { t.stop(); });
+      btn.classList.remove('recording');
+      _busy = false;
+      var blob = new Blob(_chunks, {type: mime});
+      var fd = new FormData();
+      fd.append('audio', blob, 'audio.webm');
+      var inp = document.getElementById('input');
+      inp.placeholder = 'Transcribing\u2026';
+      fetch(api() + '/transcribe', {method: 'POST', body: fd})
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+          inp.placeholder = 'Type here...';
+          if (d.text) {
+            var base = inp.value;
+            if (base && !base.endsWith(' ')) base += ' ';
+            inp.value = base + d.text.trim();
+            inp.focus();
+          } else {
+            inp.placeholder = (d.error || 'Error') + ' \u2014 try again';
+            setTimeout(function() { inp.placeholder = 'Type here...'; }, 3000);
+          }
+        })
+        .catch(function() { inp.placeholder = 'Type here...'; });
+    };
+    _mr.start();
+  }).catch(function(err) { _busy = false; alert('Mic error: ' + err.message); });
+}
+
+function micStop() {
+  if (_mr && _mr.state === 'recording') _mr.stop();
+}
+
 // Boot
 // -----------------------------------------------------------------------
 add("bot", GUIDED["en"]["greet1"]);

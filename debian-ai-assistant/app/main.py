@@ -77,6 +77,28 @@ class DeBianHandler(BaseHTTPRequestHandler):
             return {}
         return json.loads(self.rfile.read(length).decode("utf-8"))
 
+    def read_multipart(self) -> tuple:
+        """Return (audio_bytes, filename) from a multipart/form-data body."""
+        import re
+        content_type = self.headers.get("Content-Type", "")
+        boundary_match = re.search(r"boundary=([^\s;]+)", content_type)
+        if not boundary_match:
+            return b"", "audio.webm"
+        boundary = boundary_match.group(1).encode()
+        length = int(self.headers.get("Content-Length", "0"))
+        body = self.rfile.read(length)
+        parts = body.split(b"--" + boundary)
+        for part in parts:
+            if b"Content-Disposition" in part and b'name="audio"' in part:
+                header_end = part.find(b"\r\n\r\n")
+                if header_end == -1:
+                    continue
+                audio_data = part[header_end + 4:].rstrip(b"\r\n--")
+                fname_match = re.search(rb'filename="([^"]+)"', part)
+                fname = fname_match.group(1).decode() if fname_match else "audio.webm"
+                return audio_data, fname
+        return b"", "audio.webm"
+
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
         path = parsed.path
@@ -154,6 +176,49 @@ class DeBianHandler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         parsed = urlparse(self.path)
         path = parsed.path
+
+        # Whisper transcription — multipart, handle before read_json
+        if path == "/transcribe":
+            try:
+                import tempfile, urllib.request
+                audio_bytes, fname = self.read_multipart()
+                if not audio_bytes:
+                    return send_json(self, 400, {"error": "No audio data received"})
+                api_key = os.environ.get("OPENAI_API_KEY", "")
+                if not api_key:
+                    return send_json(self, 503, {"error": "OPENAI_API_KEY not configured"})
+                # Write to temp file and send to Whisper
+                suffix = "." + fname.rsplit(".", 1)[-1] if "." in fname else ".webm"
+                with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+                    tmp.write(audio_bytes)
+                    tmp_path = tmp.name
+                import urllib.request, urllib.parse
+                boundary = b"----WhisperBoundary"
+                body_parts = []
+                body_parts.append(b"--" + boundary + b"\r\n")
+                body_parts.append(b'Content-Disposition: form-data; name="model"\r\n\r\nwhisper-1\r\n')
+                body_parts.append(b"--" + boundary + b"\r\n")
+                body_parts.append(f'Content-Disposition: form-data; name="file"; filename="{fname}"\r\n'.encode())
+                body_parts.append(b"Content-Type: audio/webm\r\n\r\n")
+                with open(tmp_path, "rb") as f:
+                    body_parts.append(f.read())
+                body_parts.append(b"\r\n--" + boundary + b"--\r\n")
+                body = b"".join(body_parts)
+                req = urllib.request.Request(
+                    "https://api.openai.com/v1/audio/transcriptions",
+                    data=body,
+                    headers={
+                        "Authorization": f"Bearer {api_key}",
+                        "Content-Type": f"multipart/form-data; boundary={boundary.decode()}",
+                    },
+                    method="POST"
+                )
+                import os as _os; _os.unlink(tmp_path)
+                with urllib.request.urlopen(req, timeout=30) as resp:
+                    result = json.loads(resp.read().decode())
+                return send_json(self, 200, {"text": result.get("text", "")})
+            except Exception as err:
+                return send_json(self, 500, {"error": str(err)})
 
         try:
             payload = self.read_json()
