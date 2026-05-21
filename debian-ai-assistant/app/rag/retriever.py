@@ -1,67 +1,44 @@
 """
 RAG retriever.
 
-MVP uses an in-memory knowledge base.
-Production replacement:
-- Pinecone vector DB
-- embeddings
-- metadata filters: language, document_type, source, validity dates
-- Databricks Vector Search can be used as an alternative
+Uses Pinecone if configured, otherwise local vector-store fallback.
 """
 
 from __future__ import annotations
 
 from app.rag.query_optimizer import optimize_query
+from app.vector_db.pinecone_store import VectorStore, seed_default_documents
 
 
-KNOWLEDGE_BASE = [
-    {
-        "id": "passenger_rights_delay_en",
-        "language": "en",
-        "document_type": "passenger_rights",
-        "text": "For train delays, compensation may be available depending on delay duration and ticket conditions.",
-    },
-    {
-        "id": "passenger_rights_delay_de",
-        "language": "de",
-        "document_type": "passenger_rights",
-        "text": "Bei Zugverspätungen kann abhängig von der Dauer der Verspätung und den Ticketbedingungen eine Entschädigung möglich sein.",
-    },
-    {
-        "id": "refund_methods_en",
-        "language": "en",
-        "document_type": "refund",
-        "text": "Refunds can be processed to a bank account or as a voucher. Account numbers must be masked in the UI.",
-    },
-    {
-        "id": "human_support_en",
-        "language": "en",
-        "document_type": "support",
-        "text": "Customers can request human assistance when automated support is insufficient.",
-    },
-]
+SEEDED = False
 
 
-def retrieve_context(query: str, language: str = "auto", top_k: int = 3) -> dict:
-    optimized = optimize_query(query, language)
-    query_text = optimized["optimized_query"].lower()
-    lang = optimized["language"]
+def retrieve_context(query: str, language: str = "auto", top_k: int = 3, document_type: str | None = None) -> dict:
+    global SEEDED
 
-    scored = []
-    for doc in KNOWLEDGE_BASE:
-        score = 0
-        if doc["language"] == lang:
-            score += 2
-        for token in query_text.split():
-            if token.strip(".,!?").lower() in doc["text"].lower():
-                score += 1
-        if score > 0:
-            scored.append((score, doc))
+    optimized = optimize_query(query, language=language, document_type=document_type)
 
-    scored.sort(key=lambda item: item[0], reverse=True)
+    if not SEEDED:
+        seed_default_documents()
+        SEEDED = True
+
+    result = VectorStore().query(
+        optimized["optimized_query"],
+        top_k=top_k,
+        metadata_filter=optimized["metadata_filter"],
+    )
 
     return {
         "query": query,
         "optimized_query": optimized,
-        "documents": [doc for _, doc in scored[:top_k]],
+        "vector_store_mode": result["mode"],
+        "documents": result["matches"],
     }
+
+
+def upsert_rag_documents(documents: list[dict]) -> dict:
+    return VectorStore().upsert_documents(documents)
+
+
+def search_rag(query: str, language: str = "auto", top_k: int = 3, document_type: str | None = None) -> dict:
+    return retrieve_context(query, language=language, top_k=top_k, document_type=document_type)

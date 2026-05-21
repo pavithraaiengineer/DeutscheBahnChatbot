@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: debian-microservices-map
+  namespace: debian
+data:
+  services: |
+    debian-api-service
+    debian-agent-service
+    debian-mcp-tool-server
+    debian-rag-service
+    debian-compensation-service
+    debian-human-handoff-service
+    debian-evaluation-service
+  note: |
+    This MVP deploys one container. In production, split the modules into these services.

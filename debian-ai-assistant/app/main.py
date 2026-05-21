@@ -7,8 +7,8 @@ Run:
 Open:
     http://127.0.0.1:8000/docs
 
-This backend uses Python standard library only to avoid Windows/Python version conflicts.
-It follows the requested DB flow and project structure.
+Local backend uses Python standard library only for stability.
+Production can replace this with FastAPI while preserving the same modules.
 """
 
 from __future__ import annotations
@@ -20,7 +20,13 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlparse
 
 from app.agents.debian_agent import DeBianAgent
-from app.security.governance import sanitize_payload
+from app.config import config_status
+from app.databricks.etl_pipeline import run_etl_pipeline, read_feature_table
+from app.databricks.feature_store import get_delay_features
+from app.evaluation.eval_pipeline import run_eval_suite
+from app.rag.retriever import search_rag, upsert_rag_documents
+from app.security.governance import sanitize_payload, governance_status
+from app.session_store.firestore_store import save_session, save_claim, get_store_status
 from app.tools.compensation_tool import submit_compensation_claim
 from app.tools.delay_tool import get_delay_status
 from app.tools.human_handoff_tool import request_human_handoff
@@ -56,7 +62,6 @@ def send_html(handler: BaseHTTPRequestHandler, status_code: int, html: str) -> N
 
 class DeBianHandler(BaseHTTPRequestHandler):
     def log_message(self, format: str, *args) -> None:
-        # Do not log request bodies to reduce PII leakage.
         print(f"{self.address_string()} - {format % args}")
 
     def do_OPTIONS(self) -> None:
@@ -70,8 +75,7 @@ class DeBianHandler(BaseHTTPRequestHandler):
         length = int(self.headers.get("Content-Length", "0"))
         if length == 0:
             return {}
-        raw = self.rfile.read(length)
-        return json.loads(raw.decode("utf-8"))
+        return json.loads(self.rfile.read(length).decode("utf-8"))
 
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
@@ -79,28 +83,57 @@ class DeBianHandler(BaseHTTPRequestHandler):
         query = parse_qs(parsed.query)
 
         if path == "/":
-            return send_json(
-                self,
-                200,
-                {
-                    "status": "running",
-                    "service": "DeBian AI Rail Assistant",
-                    "docs": "/docs",
-                    "flow": "voice/image/text -> language detection -> agent -> MCP-like tools -> PII masking -> analytics/evaluation",
-                },
-            )
+            return send_json(self, 200, {
+                "status": "running",
+                "service": "DeBian AI Rail Assistant",
+                "docs": "/docs",
+                "config": config_status(),
+                "architecture": "GKE + Terraform + Databricks + Pinecone + BigQuery + Secret Manager + Monitoring",
+            })
 
         if path == "/docs":
             return send_html(self, 200, DOCS_HTML)
 
+        if path == "/infra/status":
+            return send_json(self, 200, {
+                "config": config_status(),
+                "governance": governance_status(),
+                "session_store": get_store_status(),
+            })
+
         if path.startswith("/delay/"):
             train_number = unquote(path.replace("/delay/", "", 1))
-            return send_json(self, 200, get_delay_status(train_number))
+            return send_json(self, 200, get_delay_status(
+                train_number=train_number,
+                station_name=query.get("station", [None])[0],
+                planned_start_time=query.get("planned_start_time", [None])[0],
+            ))
+
+        if path == "/etl/run":
+            return send_json(self, 200, run_etl_pipeline())
+
+        if path == "/features":
+            return send_json(self, 200, read_feature_table())
+
+        if path == "/feature":
+            train = query.get("train", [""])[0]
+            return send_json(self, 200, get_delay_features(train) if train else {"error": "train query parameter required"})
+
+        if path == "/rag-search":
+            user_query = query.get("query", [""])[0]
+            language = query.get("language", ["auto"])[0]
+            document_type = query.get("document_type", [None])[0]
+            top_k = int(query.get("top_k", ["3"])[0])
+            return send_json(self, 200, search_rag(user_query, language=language, top_k=top_k, document_type=document_type))
+
+        if path == "/eval/run":
+            return send_json(self, 200, run_eval_suite())
 
         if path == "/stream":
             message = query.get("message", ["Hello"])[0]
             language = query.get("language", ["en"])[0]
             response = AGENT.respond(message, {"language": language}).get("response", "")
+
             self.send_response(200)
             self.send_header("Content-Type", "text/event-stream; charset=utf-8")
             self.send_header("Cache-Control", "no-cache")
@@ -110,7 +143,7 @@ class DeBianHandler(BaseHTTPRequestHandler):
             for token in response.split():
                 self.wfile.write(f"data: {token}\n\n".encode("utf-8"))
                 self.wfile.flush()
-                time.sleep(0.05)
+                time.sleep(0.04)
 
             self.wfile.write("data: [DONE]\n\n".encode("utf-8"))
             self.wfile.flush()
@@ -129,23 +162,34 @@ class DeBianHandler(BaseHTTPRequestHandler):
                 message = str(payload.get("message", "")).strip()
                 if not message:
                     return send_json(self, 400, {"error": "message is required"})
-                return send_json(self, 200, AGENT.respond(message, payload))
+                result = AGENT.respond(message, payload)
+                if payload.get("session_id"):
+                    save_session(payload["session_id"], {"last_message": message, "last_response": result})
+                return send_json(self, 200, result)
 
             if path == "/claim":
-                return send_json(self, 200, submit_compensation_claim(payload))
+                result = submit_compensation_claim(payload)
+                save_claim(result["claim_id"], result)
+                return send_json(self, 200, result)
 
             if path == "/route":
                 return send_json(self, 200, get_alternative_routes(payload.get("origin", ""), payload.get("destination", "")))
 
             if path == "/human-assistance":
-                return send_json(
-                    self,
-                    200,
-                    request_human_handoff(
-                        language=payload.get("language", "en"),
-                        reason=payload.get("reason", "customer requested support"),
-                    ),
-                )
+                return send_json(self, 200, request_human_handoff(
+                    language=payload.get("language", "en"),
+                    reason=payload.get("reason", "customer requested support"),
+                    priority=payload.get("priority", "normal"),
+                ))
+
+            if path == "/rag/upsert":
+                documents = payload.get("documents", [])
+                if not isinstance(documents, list):
+                    return send_json(self, 400, {"error": "documents must be a list"})
+                return send_json(self, 200, upsert_rag_documents(documents))
+
+            if path == "/session/save":
+                return send_json(self, 200, save_session(payload.get("session_id", "default"), payload))
 
             return send_json(self, 404, {"error": "Not found"})
 
@@ -172,36 +216,24 @@ DOCS_HTML = """
 </head>
 <body>
   <h1>DeBian API Docs</h1>
-  <p>Backend is running. This MVP implements the requested DB flow using standard Python.</p>
+  <p>Complete production-style project: GKE, Terraform, Databricks-style ETL, Feature Store, Pinecone/local RAG, security, monitoring-ready.</p>
 
-  <div class="card">
-    <h2>GET /</h2>
-    <p>Health check.</p>
-  </div>
-
-  <div class="card">
-    <h2>POST /assist</h2>
-    <pre>{
-  "message": "I want compensation for delayed train ICE 572",
-  "language": "en",
-  "train_number": "ICE 572"
-}</pre>
-  </div>
-
-  <div class="card">
-    <h2>GET /stream?message=I%20need%20help&language=en</h2>
-    <p>Server-Sent Events streaming endpoint.</p>
-  </div>
-
-  <div class="card">
-    <h2>GET /delay/ICE%20572</h2>
-    <p>Mock delay lookup.</p>
-  </div>
+  <div class="card"><h2>GET /</h2><p>Health check.</p></div>
+  <div class="card"><h2>GET /infra/status</h2><p>Config, governance, session-store status.</p></div>
+  <div class="card"><h2>GET /delay/ICE%20572</h2><p>Mock/real-time-ready delay lookup.</p></div>
+  <div class="card"><h2>GET /delay/ICE%20572?station=Frankfurt(Main)Hbf&planned_start_time=2026-05-20T10:00:00</h2><p>Real-time-ready DB Timetables API mode if credentials exist.</p></div>
+  <div class="card"><h2>GET /etl/run</h2><p>Run Databricks-style Bronze/Silver/Gold ETL.</p></div>
+  <div class="card"><h2>GET /features</h2><p>Read Gold feature table.</p></div>
+  <div class="card"><h2>GET /feature?train=ICE%20572</h2><p>Read one train's feature row.</p></div>
+  <div class="card"><h2>GET /rag-search?query=refund%20delay&language=en</h2><p>Search Pinecone if configured, otherwise local vector DB fallback.</p></div>
+  <div class="card"><h2>GET /eval/run</h2><p>Evaluation service sample suite.</p></div>
+  <div class="card"><h2>GET /stream?message=I%20need%20compensation&language=en</h2><p>Streaming response.</p></div>
 
   <div class="card">
     <h2>POST /claim</h2>
     <pre>{
   "train_number": "ICE 572",
+  "station_name": "Frankfurt(Main)Hbf",
   "planned_start_time": "2026-05-20T10:00:00",
   "actual_start_time": "2026-05-20T11:35:00",
   "trip_not_started": false,
@@ -210,24 +242,7 @@ DOCS_HTML = """
   "delay_minutes": 95,
   "refund_method": "bank_account",
   "account_number": "DE89370400440532013000",
-  "home_address": null,
   "claim_form": true
-}</pre>
-  </div>
-
-  <div class="card">
-    <h2>POST /route</h2>
-    <pre>{
-  "origin": "Frankfurt(Main)Hbf",
-  "destination": "Berlin Hbf"
-}</pre>
-  </div>
-
-  <div class="card">
-    <h2>POST /human-assistance</h2>
-    <pre>{
-  "language": "en",
-  "reason": "Customer requested a callback"
 }</pre>
   </div>
 </body>

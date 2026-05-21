@@ -1,0 +1,5 @@
+project_id       = "your-gcp-project-id"
+region           = "europe-west1"
+zone             = "europe-west1-b"
+cluster_name     = "debian-gke"
+bigquery_dataset = "debian_analytics"

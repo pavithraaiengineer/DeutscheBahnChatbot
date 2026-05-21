@@ -1,9 +1,9 @@
 """
 PII masking tool.
 
-Production rule:
-- Never send full IBAN/account number to UI, LLM prompt, logs, traces, or evaluation data.
-- Only last 4 characters may be displayed.
+Rules:
+- Never return full IBAN/account numbers to UI, logs, traces, or evaluation data.
+- Show only the last 4 characters.
 """
 
 from __future__ import annotations
@@ -24,7 +24,6 @@ def mask_account_number(account_number: str | None) -> str | None:
     cleaned = normalize_account_number(account_number)
     if not cleaned:
         return None
-
     return "*" * max(len(cleaned) - 4, 0) + cleaned[-4:]
 
 
@@ -33,15 +32,13 @@ def mask_pii_text(text: str | None) -> str:
         return ""
 
     def _mask(match: re.Match) -> str:
-        value = match.group(0)
-        return mask_account_number(value) or "****"
+        return mask_account_number(match.group(0)) or "****"
 
-    return IBAN_REGEX.sub(_mask, text)
+    compact = text
+    return IBAN_REGEX.sub(_mask, compact)
 
 
 def contains_iban_like_text(text: str | None) -> bool:
     if not text:
         return False
-
-    compact = text.replace(" ", "")
-    return bool(IBAN_REGEX.search(compact))
+    return bool(IBAN_REGEX.search(text.replace(" ", "")))

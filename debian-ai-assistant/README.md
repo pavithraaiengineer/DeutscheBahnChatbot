@@ -1,33 +1,24 @@
 # DeBian AI Rail Assistant
 
-DeBian is a customer-support assistant for rail passengers.
+DeBian is a production-style AI customer-support assistant for rail passengers.
 
-It supports the requested flow:
+It includes:
 
-1. User asks question by voice, image, or text
-2. Backend receives request
-3. Language is detected
-4. Voice is converted to text if needed — MVP placeholder
-5. Image is analyzed if uploaded — MVP placeholder
-6. Agent classifies intent
-7. Agent calls the correct MCP-like tool
-8. Delay/compensation data is retrieved
-9. PII is masked
-10. Response streams back to user
-11. Analytics are written locally — production target: BigQuery
-12. Evaluation logs are stored for quality improvement
+- guided chatbot frontend
+- text, voice placeholder, image placeholder, multilingual support
+- compensation claim workflow
+- real-time-ready delay lookup
+- PII masking
+- MCP-style tools
+- RAG with Pinecone or local fallback
+- Databricks-style Bronze/Silver/Gold ETL
+- Feature Store style delay prediction features
+- evaluation logs
+- analytics/audit logs
+- Kubernetes manifests for GKE
+- Terraform for GCP infrastructure
 
-## Why this version is stable
-
-This version avoids the Python 3.14 dependency conflicts you hit earlier.
-
-The backend uses Python standard library only.
-
-No Pydantic, FastAPI, LangChain, or Streamlit is required to run the backend.
-
-The code is structured so real LangChain, MCP, Pinecone, Databricks, BigQuery, and GCP services can be added after the MVP runs.
-
-## Project Structure
+## Project structure
 
 ```text
 debian-ai-assistant/
@@ -55,12 +46,22 @@ debian-ai-assistant/
 └── README.md
 ```
 
-## Run Backend
+Extra production folders are also included:
 
-From the project root:
+```text
+app/databricks/
+app/vector_db/
+app/session_store/
+k8s/
+terraform/
+scripts/
+docs/
+```
+
+## Run backend locally
 
 ```powershell
-cd C:\Users\priya\AIcoursework\Final_Project\debian-ai-assistant
+cd debian-ai-assistant
 python -m app.main
 ```
 
@@ -70,17 +71,9 @@ Open:
 http://127.0.0.1:8000/docs
 ```
 
-Health check:
+## Run frontend locally
 
-```text
-http://127.0.0.1:8000/
-```
-
-## Run Frontend Without Installing Streamlit
-
-Open a second PowerShell terminal.
-
-From the project root:
+No-install fallback UI:
 
 ```powershell
 python frontend\streamlit_app.py
@@ -92,74 +85,62 @@ Open:
 http://127.0.0.1:8501
 ```
 
-This starts the no-install fallback UI.
-
-## Optional Streamlit Frontend
-
-Only if you want the real Streamlit UI:
+Optional Streamlit UI:
 
 ```powershell
 pip install streamlit
 streamlit run frontend\streamlit_app.py
 ```
 
-## Test Chat
-
-POST `/assist`:
-
-```json
-{
-  "message": "I want compensation for delayed train ICE 572",
-  "language": "en",
-  "train_number": "ICE 572"
-}
-```
-
-## Test Claim
-
-POST `/claim`:
-
-```json
-{
-  "train_number": "ICE 572",
-  "planned_start_time": "2026-05-20T10:00:00",
-  "actual_start_time": "2026-05-20T11:35:00",
-  "trip_not_started": false,
-  "alternative_transport": "Regional train",
-  "ticket_price": 80,
-  "delay_minutes": 95,
-  "refund_method": "bank_account",
-  "account_number": "DE89370400440532013000",
-  "home_address": null,
-  "claim_form": true
-}
-```
-
-Expected masked output:
-
-```json
-"masked_account_number": "******************3000"
-```
-
-## Streaming Test
-
-Open in browser:
+## Important test URLs
 
 ```text
-http://127.0.0.1:8000/stream?message=I%20need%20compensation&language=en
+http://127.0.0.1:8000/
+http://127.0.0.1:8000/infra/status
+http://127.0.0.1:8000/etl/run
+http://127.0.0.1:8000/features
+http://127.0.0.1:8000/feature?train=ICE%20572
+http://127.0.0.1:8000/rag-search?query=refund%20delay&language=en
+http://127.0.0.1:8000/eval/run
+http://127.0.0.1:8000/delay/ICE%20572
 ```
 
-## Docker Run
+## Demo claim flow
 
-Build:
+Use the frontend and click **Claim compensation**.
+
+Use:
+
+```text
+Train number: ICE 572
+Station: Frankfurt(Main)Hbf
+Planned start time: 2026-05-20T10:00:00
+Actual start time: 2026-05-20T11:35:00
+Delay: 95
+Alternative transport: Regional train
+Ticket price: 80
+Refund method: bank_account
+IBAN: DE89370400440532013000
+```
+
+Expected:
+
+```text
+Compensation: 25%
+Amount: 20 EUR
+Masked account: ******************3000
+```
+
+## .env
+
+Create local `.env` from `.env.example`.
+
+Never push `.env`.
+
+## Docker
 
 ```powershell
 docker build -t debian-ai-assistant .
-```
-
-Run:
-
-```powershell
 docker run -p 8080:8080 debian-ai-assistant
 ```
 
@@ -169,29 +150,28 @@ Open:
 http://127.0.0.1:8080/docs
 ```
 
-## GCP Cloud Run Deployment
+## Terraform
 
-```bash
-gcloud run deploy debian-ai-assistant \
-  --source . \
-  --region europe-west1 \
-  --allow-unauthenticated \
-  --memory 1Gi \
-  --cpu 1 \
-  --min-instances 0 \
-  --max-instances 2
+```powershell
+cd terraform
+copy terraform.tfvars.example terraform.tfvars
+terraform init
+terraform plan
+terraform apply
 ```
 
-## Production Extensions
+## GKE deploy
 
-Add these after the MVP runs:
+After Terraform:
 
-- LangChain / LangGraph orchestration in `app/agents/debian_agent.py`
-- Actual MCP server around `app/tools`
-- Pinecone vector DB in `app/rag/retriever.py`
-- Databricks ETL and Feature Store
-- BigQuery analytics writer in `app/security/governance.py`
-- Google Speech-to-Text for voice
-- Gemini Vision / Vision API for images
-- GKE deployment and Terraform infrastructure
-- OpenTelemetry, Prometheus, Grafana, and FinOps dashboards
+```powershell
+.\scripts\deploy_gke.ps1 -ProjectId your-gcp-project-id
+```
+
+## Architecture
+
+See:
+
+```text
+docs/ARCHITECTURE.md
+```

@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: debian-api-service
+  namespace: debian
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: debian-api-service
+  template:
+    metadata:
+      labels:
+        app: debian-api-service
+    spec:
+      containers:
+        - name: debian-api-service
+          image: europe-west1-docker.pkg.dev/PROJECT_ID/debian/debian-ai-assistant:latest
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: debian-config
+            - secretRef:
+                name: debian-secrets
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "256Mi"
+            limits:
+              cpu: "1"
+              memory: "1Gi"

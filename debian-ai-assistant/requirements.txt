@@ -1,9 +1,10 @@
-# Backend runs with Python standard library only.
-# No install is required for the backend:
-#     python -m app.main
+# Local backend runs with Python standard library only:
+#   python -m app.main
 #
-# Optional frontend:
-#     pip install streamlit
-#     streamlit run frontend/streamlit_app.py
+# Optional UI:
+#   pip install streamlit
 #
-# Keep this file dependency-light to avoid Python 3.14 / pydantic-core build conflicts.
+# Optional production integrations:
+#   pip install pinecone databricks-sql-connector google-cloud-bigquery google-cloud-storage
+#
+# This file is intentionally dependency-light to avoid Windows/Python version conflicts.
