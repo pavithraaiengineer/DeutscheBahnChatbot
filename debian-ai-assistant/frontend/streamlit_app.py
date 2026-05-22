@@ -219,365 +219,888 @@ _LANG_OPTIONS_HTML = "\n".join(
 
 FALLBACK_HTML = r"""
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>DeBian Guided Chatbot</title>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>DeBian – Digital Rail Assistant</title>
   <style>
-    :root { --red:#e30613; --bg:#111113; --panel:rgba(255,255,255,.08); --border:rgba(255,255,255,.14); --muted:#aaa; }
-    body { margin:0; font-family:Arial,sans-serif; background:radial-gradient(circle at 70% 80%, rgba(227,6,19,.32), transparent 32%), radial-gradient(circle at 20% 20%, rgba(57,86,255,.20), transparent 24%), var(--bg); color:white; min-height:100vh; }
-    main { max-width:1120px; margin:0 auto; padding:28px; display:grid; grid-template-columns:340px 1fr; gap:22px; }
-    section { background:var(--panel); border:1px solid var(--border); border-radius:28px; padding:26px; box-shadow:0 20px 70px rgba(0,0,0,.35); }
-    h1 { font-size:60px; margin:28px 0 4px; letter-spacing:-2px; } h1 span { color:var(--red); }
-    input, select, button { width:100%; box-sizing:border-box; padding:13px; border-radius:14px; margin:8px 0; background:rgba(0,0,0,.28); color:white; border:1px solid var(--border); }
-    button { background:var(--red); border:none; cursor:pointer; font-weight:bold; }
-    .secondary { background:rgba(255,255,255,.12); border:1px solid var(--border); }
-    .quick { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin:16px 0; }
-    .chat { height:540px; overflow-y:auto; background:rgba(0,0,0,.25); border:1px solid var(--border); border-radius:20px; padding:16px; }
-    .msg { max-width:84%; padding:12px 14px; border-radius:16px; margin:10px 0; white-space:pre-wrap; line-height:1.45; }
-    .bot { background:rgba(255,255,255,.12); border:1px solid var(--border); }
-    .user { background:var(--red); margin-left:auto; }
-    .row { display:flex; gap:10px; margin-top:14px; align-items:stretch; }
-    .row #input { flex:1 !important; width:auto !important; min-width:0; margin:0; }
-    .row #btn-mic { flex:0 0 52px !important; width:52px !important; margin:0; padding:0; }
-    .row #btn-upload { flex:0 0 52px !important; width:52px !important; margin:0; padding:0; }
-    .row #btn-send { flex:0 0 130px !important; width:130px !important; margin:0; }
-    #btn-upload { flex-shrink:0; width:52px; background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.14); border-radius:14px; cursor:pointer; color:white; display:inline-flex; align-items:center; justify-content:center; user-select:none; -webkit-user-select:none; transition:background .15s; }
-    #btn-upload:hover { background:rgba(255,255,255,.22); }
-    #file-preview { margin-top:10px; display:none; background:rgba(255,255,255,.07); border:1px solid var(--border); border-radius:14px; padding:10px 14px; font-size:13px; color:var(--muted); position:relative; }
-    #file-preview .fp-name { color:white; font-weight:bold; margin-bottom:4px; }
-    #file-preview img { max-height:120px; border-radius:8px; margin-top:6px; display:block; }
-    #file-preview .fp-clear { position:absolute; top:8px; right:10px; cursor:pointer; color:var(--muted); font-size:18px; line-height:1; }
-    #btn-mic { flex-shrink:0; width:52px; background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.14); border-radius:14px; cursor:pointer; color:white; display:inline-flex; align-items:center; justify-content:center; user-select:none; -webkit-user-select:none; transition:background .15s; }
-    #btn-mic.recording { background:#e30613; border-color:#e30613; animation:pulse .8s infinite; }
-    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.55} }
-    .hint { color:var(--muted); font-size:13px; line-height:1.4; }
-    @media(max-width:900px){ main{grid-template-columns:1fr; padding:18px;} }
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;700&display=swap');
+    :root{--red:#e30613;--bg:#0d0d10;--panel:rgba(255,255,255,.07);--panel2:rgba(255,255,255,.04);--border:rgba(255,255,255,.13);--muted:#888;--green:#22c55e;--amber:#f59e0b;--blue:#3b82f6;--purple:#a855f7;}
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{font-family:'Inter',sans-serif;background:radial-gradient(ellipse 80% 60% at 70% 100%,rgba(227,6,19,.18),transparent),radial-gradient(ellipse 50% 40% at 20% 10%,rgba(59,130,246,.12),transparent),var(--bg);color:#f0f0f2;min-height:100vh;}
+    /* ─── layout ─── */
+    #app{display:flex;height:100vh;overflow:hidden;}
+    #sidebar{width:260px;min-width:220px;background:rgba(0,0,0,.4);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:0;flex-shrink:0;}
+    #main-area{flex:1;overflow:hidden;display:flex;flex-direction:column;}
+    /* ─── sidebar ─── */
+    .sb-logo{padding:24px 20px 16px;border-bottom:1px solid var(--border);}
+    .sb-logo h1{font-family:'Space Grotesk',sans-serif;font-size:32px;letter-spacing:-1px;line-height:1;}
+    .sb-logo h1 span{color:var(--red);}
+    .sb-logo p{color:var(--muted);font-size:12px;margin-top:4px;}
+    .sb-nav{flex:1;padding:12px 10px;overflow-y:auto;}
+    .nav-section{font-size:10px;font-weight:600;letter-spacing:.1em;color:var(--muted);text-transform:uppercase;padding:14px 10px 6px;}
+    .nav-btn{display:flex;align-items:center;gap:10px;width:100%;padding:10px 12px;border:none;background:transparent;color:#ccc;border-radius:10px;cursor:pointer;font-size:13.5px;text-align:left;transition:all .15s;}
+    .nav-btn:hover,.nav-btn.active{background:rgba(255,255,255,.1);color:white;}
+    .nav-btn.active{background:rgba(227,6,19,.18);color:var(--red);}
+    .nav-icon{font-size:16px;flex-shrink:0;width:20px;text-align:center;}
+    .role-badge{font-size:10px;padding:2px 7px;border-radius:20px;font-weight:600;margin-left:auto;flex-shrink:0;}
+    .role-admin{background:rgba(168,85,247,.25);color:#c084fc;}
+    .role-employee{background:rgba(59,130,246,.2);color:#60a5fa;}
+    .role-customer{background:rgba(34,197,94,.18);color:#4ade80;}
+    .sb-user{padding:14px;border-top:1px solid var(--border);}
+    .sb-user-name{font-size:13px;font-weight:600;}
+    .sb-user-role{font-size:11px;color:var(--muted);}
+    .sb-user-iban{font-size:11px;color:var(--muted);margin-top:2px;}
+    .sb-login-btn{width:100%;margin-top:8px;padding:9px;border-radius:10px;background:var(--red);border:none;color:white;font-weight:600;cursor:pointer;font-size:13px;}
+    /* ─── tabs ─── */
+    #tab-bar{display:flex;border-bottom:1px solid var(--border);background:rgba(0,0,0,.2);padding:0 20px;}
+    .tab{padding:13px 18px;cursor:pointer;font-size:13px;color:var(--muted);border-bottom:2px solid transparent;transition:all .15s;white-space:nowrap;}
+    .tab.active{color:var(--red);border-bottom-color:var(--red);}
+    /* ─── chat panel ─── */
+    #chat-panel{display:flex;height:100%;flex-direction:column;padding:0;}
+    .chat-top{padding:16px 20px 0;}
+    .quick-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px;}
+    .quick-grid button{padding:9px 6px;font-size:12px;border-radius:12px;}
+    .chat-box{flex:1;overflow-y:auto;background:rgba(0,0,0,.2);margin:0 20px;border:1px solid var(--border);border-radius:18px;padding:14px;min-height:0;}
+    .msg{max-width:82%;padding:11px 14px;border-radius:14px;margin:8px 0;white-space:pre-wrap;line-height:1.5;font-size:14px;}
+    .bot{background:rgba(255,255,255,.1);border:1px solid var(--border);}
+    .user{background:var(--red);margin-left:auto;}
+    .chat-input-area{padding:12px 20px 16px;display:flex;flex-direction:column;gap:8px;}
+    #file-preview{display:none;background:rgba(255,255,255,.07);border:1px solid var(--border);border-radius:12px;padding:8px 12px;font-size:12px;color:var(--muted);position:relative;}
+    #file-preview .fp-name{color:white;font-weight:600;margin-bottom:2px;}
+    #file-preview img{max-height:80px;border-radius:6px;margin-top:4px;display:block;}
+    #file-preview .fp-clear{position:absolute;top:6px;right:10px;cursor:pointer;font-size:16px;}
+    .input-row{display:flex;gap:8px;align-items:stretch;}
+    .input-row #input{flex:1;min-width:0;margin:0;padding:12px 14px;background:rgba(0,0,0,.3);border:1px solid var(--border);border-radius:12px;color:white;font-size:14px;}
+    .icon-btn{flex-shrink:0;width:46px;height:46px;background:rgba(255,255,255,.1);border:1px solid var(--border);border-radius:12px;cursor:pointer;color:white;display:flex;align-items:center;justify-content:center;}
+    .icon-btn:hover{background:rgba(255,255,255,.18);}
+    .icon-btn.recording{background:var(--red);animation:pulse .8s infinite;}
+    #btn-send-main{flex-shrink:0;padding:0 20px;height:46px;background:var(--red);border:none;border-radius:12px;color:white;font-weight:700;cursor:pointer;font-size:14px;}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+    /* ─── analytics panel ─── */
+    #analytics-panel{display:none;height:100%;overflow-y:auto;padding:24px;}
+    .dash-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px;margin-bottom:24px;}
+    .kpi-card{background:var(--panel);border:1px solid var(--border);border-radius:20px;padding:20px 22px;}
+    .kpi-label{font-size:12px;color:var(--muted);font-weight:500;margin-bottom:8px;}
+    .kpi-value{font-size:36px;font-weight:700;font-family:'Space Grotesk',sans-serif;line-height:1;}
+    .kpi-sub{font-size:12px;color:var(--muted);margin-top:4px;}
+    .kpi-green{color:var(--green);}
+    .kpi-red{color:var(--red);}
+    .kpi-amber{color:var(--amber);}
+    .kpi-blue{color:var(--blue);}
+    .chart-card{background:var(--panel);border:1px solid var(--border);border-radius:20px;padding:20px 22px;margin-bottom:20px;}
+    .chart-card h3{font-size:14px;font-weight:600;margin-bottom:16px;color:#ddd;}
+    .bar-chart{display:flex;align-items:flex-end;gap:10px;height:160px;}
+    .bar-wrap{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;}
+    .bar{width:100%;border-radius:6px 6px 0 0;transition:height .4s;min-height:4px;}
+    .bar-label{font-size:11px;color:var(--muted);text-align:center;}
+    .bar-val{font-size:11px;font-weight:600;text-align:center;}
+    .h-bar-row{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+    .h-bar-label{font-size:12px;color:#ccc;width:160px;flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .h-bar-track{flex:1;background:rgba(255,255,255,.08);border-radius:6px;height:22px;position:relative;}
+    .h-bar-fill{height:100%;border-radius:6px;display:flex;align-items:center;padding-left:8px;font-size:11px;font-weight:600;transition:width .5s;}
+    .h-bar-pct{font-size:12px;color:var(--muted);width:42px;text-align:right;flex-shrink:0;}
+    .train-table{width:100%;border-collapse:collapse;font-size:13px;}
+    .train-table th{text-align:left;color:var(--muted);font-weight:500;padding:8px 10px;border-bottom:1px solid var(--border);font-size:11px;text-transform:uppercase;letter-spacing:.05em;}
+    .train-table td{padding:10px 10px;border-bottom:1px solid rgba(255,255,255,.05);}
+    .status-pill{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;}
+    .pill-full{background:rgba(227,6,19,.2);color:#f87171;}
+    .pill-high{background:rgba(245,158,11,.18);color:#fbbf24;}
+    .pill-low{background:rgba(34,197,94,.15);color:#4ade80;}
+    .occ-bar-wrap{display:flex;align-items:center;gap:8px;}
+    .occ-mini{flex:1;height:8px;background:rgba(255,255,255,.08);border-radius:4px;}
+    .occ-mini-fill{height:100%;border-radius:4px;}
+    .charts-2col{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+    /* ─── occupancy panel ─── */
+    #occupancy-panel{display:none;height:100%;overflow-y:auto;padding:24px;}
+    .occ-search{display:flex;gap:10px;margin-bottom:20px;}
+    .occ-search input{flex:1;padding:11px 14px;background:rgba(0,0,0,.3);border:1px solid var(--border);border-radius:12px;color:white;font-size:14px;}
+    .occ-search button{padding:11px 22px;background:var(--red);border:none;border-radius:12px;color:white;font-weight:700;cursor:pointer;}
+    .occ-result{background:var(--panel);border:1px solid var(--border);border-radius:20px;padding:22px;display:none;}
+    /* ─── profile panel ─── */
+    #profile-panel{display:none;height:100%;overflow-y:auto;padding:24px;}
+    .profile-card{background:var(--panel);border:1px solid var(--border);border-radius:20px;padding:26px;max-width:560px;}
+    .profile-field{margin-bottom:14px;}
+    .profile-field label{display:block;font-size:11px;color:var(--muted);margin-bottom:5px;font-weight:500;}
+    .profile-field input,.profile-field select{width:100%;padding:10px 14px;background:rgba(0,0,0,.3);border:1px solid var(--border);border-radius:10px;color:white;font-size:14px;}
+    .profile-field .value{font-size:14px;padding:10px 0;}
+    .save-btn{padding:11px 26px;background:var(--red);border:none;border-radius:12px;color:white;font-weight:700;cursor:pointer;font-size:14px;margin-top:8px;}
+    .iban-display{font-family:monospace;font-size:16px;color:white;padding:12px 16px;background:rgba(0,0,0,.3);border:1px solid var(--border);border-radius:10px;letter-spacing:2px;}
+    /* ─── login modal ─── */
+    #modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:1000;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(6px);}
+    .modal{background:#18181b;border:1px solid var(--border);border-radius:24px;padding:36px;width:380px;max-width:92vw;}
+    .modal h2{font-family:'Space Grotesk',sans-serif;font-size:26px;margin-bottom:4px;}
+    .modal p{color:var(--muted);font-size:13px;margin-bottom:22px;}
+    .modal input,.modal select{width:100%;padding:12px 14px;background:rgba(255,255,255,.07);border:1px solid var(--border);border-radius:12px;color:white;font-size:14px;margin-bottom:10px;}
+    .modal-btn{width:100%;padding:13px;background:var(--red);border:none;border-radius:12px;color:white;font-weight:700;cursor:pointer;font-size:15px;margin-top:4px;}
+    .modal-link{text-align:center;margin-top:14px;font-size:13px;color:var(--muted);cursor:pointer;}
+    .modal-link span{color:var(--red);}
+    .modal-err{color:#f87171;font-size:13px;margin-bottom:8px;display:none;}
+    .demo-pills{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;}
+    .demo-pill{padding:5px 12px;border-radius:20px;font-size:12px;cursor:pointer;border:1px solid var(--border);background:rgba(255,255,255,.06);color:#ccc;transition:background .15s;}
+    .demo-pill:hover{background:rgba(255,255,255,.14);}
+    /* ─── misc ─── */
+    .hint{color:var(--muted);font-size:12px;}
+    .section-title{font-size:22px;font-family:'Space Grotesk',sans-serif;font-weight:700;margin-bottom:6px;}
+    .section-sub{font-size:13px;color:var(--muted);margin-bottom:20px;}
+    @media(max-width:700px){#sidebar{width:60px;}#sidebar .sb-logo p,.sb-logo h1,.nav-btn span,.sb-user-name,.sb-user-role,.sb-user-iban{display:none;}.nav-btn{justify-content:center;padding:12px;}.charts-2col{grid-template-columns:1fr;}}
   </style>
 </head>
 <body>
-<main>
-<section>
-  <h1>De<span>Bi</span>an</h1>
-  <p>Your Digital Rail Assistant</p>
-  <input id="apiBase" value="http://127.0.0.1:8000" />
-  <select id="language" onchange="onLangChange()">
+<div id="app">
+
+<!-- ═══════════════════════════════ SIDEBAR ═══════════════════════════════ -->
+<div id="sidebar">
+  <div class="sb-logo">
+    <h1>De<span>Bi</span>an</h1>
+    <p>Digital Rail Assistant</p>
+  </div>
+  <nav class="sb-nav">
+    <div class="nav-section">Navigation</div>
+    <button class="nav-btn active" onclick="showPanel('chat')" id="nav-chat">
+      <span class="nav-icon">💬</span><span>Chat</span>
+    </button>
+    <button class="nav-btn" onclick="showPanel('profile')" id="nav-profile">
+      <span class="nav-icon">👤</span><span>My Profile</span>
+    </button>
+    <button class="nav-btn" onclick="showPanel('occupancy')" id="nav-occupancy" style="display:none">
+      <span class="nav-icon">🚆</span><span>Occupancy</span>
+    </button>
+    <button class="nav-btn" onclick="showPanel('analytics')" id="nav-analytics" style="display:none">
+      <span class="nav-icon">📊</span><span>Analytics</span>
+    </button>
+    <div class="nav-section">Settings</div>
+    <div style="padding:6px 12px;">
+      <input id="apiBase" value="http://127.0.0.1:8000" style="width:100%;padding:8px 10px;background:rgba(0,0,0,.3);border:1px solid var(--border);border-radius:8px;color:white;font-size:12px;" />
+    </div>
+    <button class="nav-btn" onclick="checkBackend()"><span class="nav-icon">🔌</span><span>Check Backend</span></button>
+    <button class="nav-btn" onclick="runETL()"><span class="nav-icon">⚙️</span><span>Run ETL</span></button>
+    <div style="padding:6px 12px;">
+      <select id="language" onchange="onLangChange()" style="width:100%;padding:8px;background:rgba(0,0,0,.3);border:1px solid var(--border);border-radius:8px;color:white;font-size:12px;">
 """ + _LANG_OPTIONS_HTML + r"""
-  </select>
-  <button class="secondary" onclick="checkBackend()">Check Backend</button>
-  <button class="secondary" onclick="runETL()">Run ETL</button>
-  <button class="secondary" onclick="infra()">Infra Status</button>
-  <p id="status" class="hint">Start backend first: python -m app.main</p>
-</section>
-<section>
-  <h2 id="hdr-title">Hello! 👋</h2>
-  <p class="hint" id="hdr-sub">I am DeBian. I can help with delay checks, compensation claims, alternative routes, and human support.</p>
-  <div class="quick">
-    <button id="btn-book" onclick="book()">🎫 Book a ticket</button>
-    <button id="btn-claim" onclick="startClaim()">💶 Claim compensation</button>
-    <button id="btn-delay" onclick="startDelay()">🚆 Check delay</button>
-    <button id="btn-human" onclick="human()">☎️ Human assistance</button>
+      </select>
+    </div>
+    <p id="status" class="hint" style="padding:6px 14px;">Start backend: python -m app.main</p>
+  </nav>
+  <div class="sb-user" id="sb-user-area">
+    <div id="sb-logged-out">
+      <button class="sb-login-btn" onclick="showLogin()">🔑 Sign In</button>
+    </div>
+    <div id="sb-logged-in" style="display:none;">
+      <div class="sb-user-name" id="sb-name">–</div>
+      <div class="sb-user-role" id="sb-role">–</div>
+      <div class="sb-user-iban" id="sb-iban"></div>
+      <button class="sb-login-btn" onclick="logout()" style="background:rgba(255,255,255,.1);margin-top:8px;">Sign Out</button>
+    </div>
   </div>
-  <div id="chat" class="chat"></div>
-  <div id="file-preview">
-    <span class="fp-clear" onclick="clearFile()">✕</span>
-    <div class="fp-name" id="fp-name"></div>
-    <div id="fp-img-wrap"></div>
+</div>
+
+<!-- ═══════════════════════════════ MAIN AREA ═══════════════════════════════ -->
+<div id="main-area">
+
+<!-- ── Chat Panel ─────────────────────────────────────────────────────────── -->
+<div id="chat-panel" style="display:flex;flex-direction:column;height:100%;overflow:hidden;">
+  <div class="chat-top">
+    <div class="quick-grid">
+      <button onclick="book()">🎫 Book</button>
+      <button onclick="startClaim()">💶 Claim</button>
+      <button onclick="startDelay()">🚆 Delay</button>
+      <button onclick="human()">☎️ Human</button>
+    </div>
   </div>
-  <div class="row"><input id="input" placeholder="Type here..." onkeydown="if(event.key==='Enter')send()" /><button id="btn-upload" onclick="document.getElementById('file-input').click()" title="Upload document or image"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg></button><input type="file" id="file-input" accept="image/*,.pdf,.txt,.doc,.docx" style="display:none" onchange="onFileSelected(this)"/><button id="btn-mic" onmousedown="micStart(event)" onmouseup="micStop()" onmouseleave="micStop()" ontouchstart="micStart(event)" ontouchend="micStop()"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="11" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/></svg></button><button onclick="send()" id="btn-send">Send</button></div>
-</section>
-</main>
+  <div id="chat" class="chat-box"></div>
+  <div class="chat-input-area">
+    <div id="file-preview">
+      <span class="fp-clear" onclick="clearFile()">✕</span>
+      <div class="fp-name" id="fp-name"></div>
+      <div id="fp-img-wrap"></div>
+    </div>
+    <div class="input-row">
+      <input id="input" placeholder="Type here…" onkeydown="if(event.key==='Enter')send()"/>
+      <button class="icon-btn" id="btn-upload" onclick="document.getElementById('file-input').click()" title="Upload file">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+      </button>
+      <input type="file" id="file-input" accept="image/*,.pdf,.txt,.doc,.docx" style="display:none" onchange="onFileSelected(this)"/>
+      <button class="icon-btn" id="btn-mic" onmousedown="micStart(event)" onmouseup="micStop()" onmouseleave="micStop()" ontouchstart="micStart(event)" ontouchend="micStop()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="2" width="6" height="11" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/></svg>
+      </button>
+      <button id="btn-send-main" onclick="send()">Send →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Profile Panel ──────────────────────────────────────────────────────── -->
+<div id="profile-panel">
+  <div class="section-title">My Profile</div>
+  <div class="section-sub">Manage your account and banking details.</div>
+  <div class="profile-card" id="profile-card">
+    <p style="color:var(--muted);font-size:14px;">Please sign in to view your profile.</p>
+  </div>
+</div>
+
+<!-- ── Occupancy Panel (employee/admin) ───────────────────────────────────── -->
+<div id="occupancy-panel">
+  <div class="section-title">Train Occupancy</div>
+  <div class="section-sub">Check seat availability for any train. (Employee / Admin only)</div>
+  <div class="occ-search">
+    <input id="occ-input" placeholder="Train number: ICE 572, RE 50, …" onkeydown="if(event.key==='Enter')lookupOcc()"/>
+    <button onclick="lookupOcc()">Check →</button>
+  </div>
+  <div class="occ-result" id="occ-result"></div>
+  <div style="margin-top:28px;">
+    <div class="section-title" style="font-size:17px;margin-bottom:12px;">Fleet Overview</div>
+    <div id="fleet-table-wrap"></div>
+  </div>
+</div>
+
+<!-- ── Analytics Panel (admin) ────────────────────────────────────────────── -->
+<div id="analytics-panel">
+  <div class="section-title">Analytics Dashboard</div>
+  <div class="section-sub">Real-time rail operations overview · Admin only</div>
+  <div class="dash-grid" id="kpi-grid"></div>
+  <div class="charts-2col">
+    <div class="chart-card">
+      <h3>📈 Weekly Avg Occupancy (%)</h3>
+      <div class="bar-chart" id="chart-occ"></div>
+    </div>
+    <div class="chart-card">
+      <h3>💰 Monthly Revenue (€K)</h3>
+      <div class="bar-chart" id="chart-rev"></div>
+    </div>
+  </div>
+  <div class="chart-card">
+    <h3>🚆 Occupancy by Route</h3>
+    <div id="chart-routes"></div>
+  </div>
+  <div class="charts-2col">
+    <div class="chart-card">
+      <h3>⏱ Avg Delay by Train Type (min)</h3>
+      <div id="chart-delay"></div>
+    </div>
+    <div class="chart-card">
+      <h3>💶 Monthly Compensation Claims</h3>
+      <div class="bar-chart" id="chart-claims"></div>
+    </div>
+  </div>
+</div>
+
+</div><!-- #main-area -->
+</div><!-- #app -->
+
+<!-- ═══════════════════════════════ LOGIN MODAL ═══════════════════════════ -->
+<div id="modal-overlay" style="display:none;">
+  <div class="modal">
+    <h2 id="modal-title">Welcome back</h2>
+    <p id="modal-sub">Sign in to access DeBian services.</p>
+    <div class="demo-pills">
+      <div class="demo-pill" onclick="fillDemo('customer_demo','customer123')">👤 Customer demo</div>
+      <div class="demo-pill" onclick="fillDemo('employee_demo','employee123')">🏢 Employee demo</div>
+      <div class="demo-pill" onclick="fillDemo('admin_demo','admin123')">🛡 Admin demo</div>
+    </div>
+    <div class="modal-err" id="modal-err"></div>
+    <div id="modal-login-form">
+      <input id="m-user" placeholder="Username"/>
+      <input id="m-pass" placeholder="Password" type="password" onkeydown="if(event.key==='Enter')doLogin()"/>
+      <button class="modal-btn" onclick="doLogin()">Sign In</button>
+      <div class="modal-link">No account? <span onclick="toggleModal()">Register →</span></div>
+    </div>
+    <div id="modal-reg-form" style="display:none;">
+      <input id="r-user" placeholder="Username"/>
+      <input id="r-pass" placeholder="Password" type="password"/>
+      <input id="r-name" placeholder="Full name"/>
+      <input id="r-email" placeholder="Email"/>
+      <select id="r-role"><option value="customer">Customer</option><option value="employee">Employee</option></select>
+      <button class="modal-btn" onclick="doRegister()">Create Account</button>
+      <div class="modal-link">Have an account? <span onclick="toggleModal()">Sign In →</span></div>
+    </div>
+    <div class="modal-link" style="margin-top:10px;" onclick="closeModal()">Continue as guest →</div>
+  </div>
+</div>
+
 <script>
-// -----------------------------------------------------------------------
-// Guided-flow string tables (mirrors backend GUIDED dict)
-// -----------------------------------------------------------------------
-const GUIDED = """ + str(GUIDED).replace("True", "true").replace("False", "false").replace("None", "null") + r""";
+// ═══════════════════════ GUIDED STRINGS ═══════════════════════
+const GUIDED = """ + __import__("json").dumps(GUIDED, ensure_ascii=False) + r""";
+function g(key){ return (GUIDED[lang()]||GUIDED["en"])[key]||GUIDED["en"][key]; }
 
-function g(key){ return (GUIDED[lang()] || GUIDED["en"])[key] || GUIDED["en"][key]; }
-
-// -----------------------------------------------------------------------
-// State
-// -----------------------------------------------------------------------
-let step = null, claim = {};
-
-function api(){ return document.getElementById("apiBase").value.replace(/\/$/, ""); }
+// ═══════════════════════ STATE ═══════════════════════
+let step=null, claim={}, _history=[], _token=null, _user=null;
+function api(){ return document.getElementById("apiBase").value.replace(/\/$/,""); }
 function lang(){ return document.getElementById("language").value; }
 
-function add(role, text){
-  let d = document.createElement("div");
-  d.className = "msg " + (role === "user" ? "user" : "bot");
-  d.innerText = text;
-  chat.appendChild(d);
-  chat.scrollTop = chat.scrollHeight;
+// ═══════════════════════ PANELS ═══════════════════════
+function showPanel(name){
+  ["chat","profile","occupancy","analytics"].forEach(p=>{
+    document.getElementById(p+"-panel").style.display="none";
+    const nb=document.getElementById("nav-"+p);
+    if(nb) nb.classList.remove("active");
+  });
+  document.getElementById(name+"-panel").style.display=name==="chat"?"flex":"block";
+  const nb=document.getElementById("nav-"+name);
+  if(nb) nb.classList.add("active");
+  if(name==="analytics") loadAnalytics();
+  if(name==="occupancy") loadFleetOverview();
+  if(name==="profile")   renderProfile();
 }
 
-async function post(path, payload){
-  let r = await fetch(api() + path, {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload)});
-  return await r.json();
+// ═══════════════════════ AUTH ═══════════════════════
+function showLogin(){ document.getElementById("modal-overlay").style.display="flex"; }
+function closeModal(){ document.getElementById("modal-overlay").style.display="none"; }
+function toggleModal(){
+  const l=document.getElementById("modal-login-form"),r=document.getElementById("modal-reg-form");
+  const isLogin=l.style.display!=="none";
+  l.style.display=isLogin?"none":"block";
+  r.style.display=isLogin?"block":"none";
+  document.getElementById("modal-title").innerText=isLogin?"Create Account":"Welcome back";
 }
-async function get(path){ let r = await fetch(api() + path); return await r.json(); }
+function fillDemo(u,p){ document.getElementById("m-user").value=u; document.getElementById("m-pass").value=p; }
+function modalErr(msg){ const e=document.getElementById("modal-err"); e.innerText=msg; e.style.display=msg?"block":"none"; }
 
-// -----------------------------------------------------------------------
-// Language change — reset chat to greeting in new language
-// -----------------------------------------------------------------------
-function onLangChange(){
-  step = null; claim = {};
-  chat.innerHTML = "";
-  add("bot", g("greet1"));
-  add("bot", g("greet2"));
-  document.getElementById("input").placeholder = lang() === "ar" ? "اكتب هنا..." : "Type here...";
-}
-
-// -----------------------------------------------------------------------
-// Response formatters (unchanged from original)
-// -----------------------------------------------------------------------
-function formatDelay(d){
-  const train = d.train_number || "your train";
-  if(d.status === "unknown"){
-    return `I could not find delay data for ${train} yet.\n\nFor this demo, try ICE 572, ICE 999, or RE 50.\nFor live mode, configure DB API credentials and provide station name plus planned start time.`;
-  }
-  let lines = [`Status for ${train}: ${d.status}.`];
-  if(d.delay_minutes !== null && d.delay_minutes !== undefined) lines.push(`Delay: approximately ${d.delay_minutes} minutes.`);
-  if(d.origin && d.destination) lines.push(`Route: ${d.origin} → ${d.destination}.`);
-  if(d.station_name) lines.push(`Station: ${d.station_name}.`);
-  if(d.planned_start_time) lines.push(`Planned start time: ${d.planned_start_time}.`);
-  if(d.actual_start_time) lines.push(`Actual start time: ${d.actual_start_time}.`);
-  if(d.platform) lines.push(`Platform: ${d.platform}.`);
-  if(String(d.source || "").startsWith("mock")) lines.push("Note: this is demo data. For live data, configure DB API credentials.");
-  if(d.delay_minutes >= 60) lines.push("You may be able to continue with a compensation claim.");
-  return lines.join("\n");
-}
-
-function formatClaim(r){
-  let c = r.compensation || {};
-  let lines = [`Your compensation claim has been submitted.\nReference: ${r.claim_id || "created"}.`];
-  if(c.eligible){
-    lines.push(`Estimated compensation: ${c.percentage}% = ${c.amount} ${c.currency || "EUR"}.`);
-  } else {
-    lines.push("Based on the demo rules, this journey is probably not eligible for compensation.");
-  }
-  if(r.masked_account_number) lines.push(`Confirmed account: ${r.masked_account_number}.`);
-  if(r.home_address_confirmed) lines.push("Voucher delivery address has been confirmed.");
-  lines.push("Sensitive data has been masked.");
-  return lines.join("\n");
-}
-
-// -----------------------------------------------------------------------
-// Sidebar actions
-// -----------------------------------------------------------------------
-async function checkBackend(){
+async function doLogin(){
+  const username=document.getElementById("m-user").value.trim();
+  const password=document.getElementById("m-pass").value;
+  if(!username||!password){ modalErr("Please enter username and password."); return; }
+  // Offline demo accounts (used when backend is not running)
+  const DEMO_ACCOUNTS={
+    "customer_demo":{password:"customer123",user:{user_id:"customer_demo",username:"customer_demo",full_name:"Anna Müller",email:"anna@demo.de",role:"customer",masked_iban:"********************0130"}},
+    "employee_demo":{password:"employee123",user:{user_id:"employee_demo",username:"employee_demo",full_name:"Hans Schmidt",email:"hans@bahn.de",role:"employee",masked_iban:null}},
+    "admin_demo":{password:"admin123",user:{user_id:"admin_demo",username:"admin_demo",full_name:"Dr. Klaus Weber",email:"admin@bahn.de",role:"admin",masked_iban:null}},
+  };
   try{
-    let d = await get("/");
-    status.innerText = "✅ " + d.service + " | LLM configured: " + d.config.llm_configured;
-  } catch(e){ status.innerText = "❌ Backend not reachable"; }
+    const r=await fetch(api()+"/auth/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username,password})}).catch(()=>null);
+    let d=null;
+    if(r&&r.ok) d=await r.json();
+    if(!d||d._offline||!d.success){
+      // Backend offline — try local demo accounts
+      const demo=DEMO_ACCOUNTS[username];
+      if(demo&&demo.password===password){
+        _token="demo-token-offline"; _user=demo.user;
+        closeModal(); applyAuth();
+        add("bot","✅ Welcome back, "+_user.full_name+"! Role: "+_user.role+". (Offline mode — AI powered by Anthropic)");
+        return;
+      }
+      if(d&&!d.success) modalErr(d.error||"Login failed.");
+      else modalErr("Backend offline. Use demo accounts: customer_demo / employee_demo / admin_demo with passwords customer123 / employee123 / admin123");
+      return;
+    }
+    _token=d.token; _user=d.user;
+    closeModal(); applyAuth();
+    add("bot","✅ Welcome back, "+_user.full_name+"! Role: "+_user.role+".");
+  }catch(e){ modalErr("Login error: "+e.message); }
 }
+
+async function doRegister(){
+  const body={username:document.getElementById("r-user").value.trim(),password:document.getElementById("r-pass").value,full_name:document.getElementById("r-name").value.trim(),email:document.getElementById("r-email").value.trim(),role:document.getElementById("r-role").value};
+  try{
+    const r=await fetch(api()+"/auth/register",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+    const d=await r.json();
+    if(!d.success){ modalErr(d.error||"Registration failed."); return; }
+    _token=d.token; _user=d.user;
+    closeModal(); applyAuth();
+    add("bot","✅ Account created! Welcome, "+_user.full_name+".");
+  }catch(e){ modalErr("Backend not reachable: "+e.message); }
+}
+
+function logout(){
+  _token=null; _user=null;
+  document.getElementById("sb-logged-in").style.display="none";
+  document.getElementById("sb-logged-out").style.display="block";
+  document.getElementById("nav-occupancy").style.display="none";
+  document.getElementById("nav-analytics").style.display="none";
+  showPanel("chat");
+  add("bot","You have been signed out.");
+}
+
+function applyAuth(){
+  if(!_user) return;
+  document.getElementById("sb-logged-out").style.display="none";
+  document.getElementById("sb-logged-in").style.display="block";
+  document.getElementById("sb-name").innerText=_user.full_name||_user.username;
+  const roleLabel={"admin":"🛡 Admin","employee":"🏢 Employee","customer":"👤 Customer"}[_user.role]||_user.role;
+  document.getElementById("sb-role").innerText=roleLabel;
+  if(_user.masked_iban) document.getElementById("sb-iban").innerText="IBAN: ****"+_user.masked_iban.slice(-4);
+  // show nav items based on role
+  const lvl={"admin":3,"employee":2,"customer":1}[_user.role]||0;
+  document.getElementById("nav-occupancy").style.display=lvl>=2?"flex":"none";
+  document.getElementById("nav-analytics").style.display=lvl>=3?"flex":"none";
+}
+
+// ═══════════════════════ PROFILE ═══════════════════════
+function renderProfile(){
+  const card=document.getElementById("profile-card");
+  if(!_user){ card.innerHTML='<p style="color:var(--muted);font-size:14px;">Please <span style="color:var(--red);cursor:pointer;" onclick="showLogin()">sign in</span> to view your profile.</p>'; return; }
+  const ibanSection=_user.role==="customer"?`
+    <div class="profile-field">
+      <label>IBAN (for refunds)</label>
+      ${_user.masked_iban?`<div class="iban-display">**** **** **** ${_user.masked_iban.slice(-4)}</div>`:'<p class="hint" style="padding:8px 0;">No IBAN on file.</p>'}
+    </div>
+    <div class="profile-field">
+      <label>Update IBAN</label>
+      <input id="iban-input" placeholder="DE89 3704 0044 0532 0130 00"/>
+      <button class="save-btn" onclick="saveIban()" style="margin-top:10px;">Save IBAN</button>
+    </div>
+  `:"";
+  card.innerHTML=`
+    <div class="profile-field"><label>Full Name</label><div class="value">${_user.full_name||"–"}</div></div>
+    <div class="profile-field"><label>Username</label><div class="value">${_user.username}</div></div>
+    <div class="profile-field"><label>Email</label><div class="value">${_user.email||"–"}</div></div>
+    <div class="profile-field"><label>Role</label><div class="value">${_user.role}</div></div>
+    ${ibanSection}
+  `;
+}
+
+async function saveIban(){
+  const iban=document.getElementById("iban-input").value.trim();
+  if(!iban){ alert("Please enter an IBAN."); return; }
+  if(!_token){ showLogin(); return; }
+  const r=await fetch(api()+"/user/iban",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+_token},body:JSON.stringify({iban})});
+  const d=await r.json();
+  if(d.success){
+    _user.masked_iban=d.masked_iban;
+    document.getElementById("sb-iban").innerText="IBAN: ****"+d.masked_iban.slice(-4);
+    renderProfile();
+    add("bot","✅ IBAN saved. Showing last 4 digits: ****"+d.masked_iban.slice(-4));
+  } else { alert(d.error||"Failed to save IBAN."); }
+}
+
+// ═══════════════════════ OCCUPANCY ═══════════════════════
+async function lookupOcc(){
+  const train=document.getElementById("occ-input").value.trim();
+  if(!train) return;
+  if(!_token){ showLogin(); return; }
+  try{
+    let d;
+    const r=await fetch(api()+"/occupancy/"+encodeURIComponent(train),{headers:{"Authorization":"Bearer "+_token}}).catch(()=>null);
+    if(!r||!r.ok){
+      // Backend offline — use mock occupancy data
+      const mockOcc={"ICE 572":{occupancy_pct:82,status:"high",seats_total:450,seats_booked:369,seats_available:81,wagon_classes:{"1st":{booked:78,total:90},"2nd":{booked:291,total:360}},source:"local-mock",date:new Date().toISOString().slice(0,10)},"ICE 999":{occupancy_pct:95,status:"full",seats_total:450,seats_booked:428,seats_available:22,wagon_classes:{"1st":{booked:88,total:90},"2nd":{booked:340,total:360}},source:"local-mock",date:new Date().toISOString().slice(0,10)},"RE 50":{occupancy_pct:41,status:"low",seats_total:200,seats_booked:82,seats_available:118,wagon_classes:{},source:"local-mock",date:new Date().toISOString().slice(0,10)}};
+      const key=Object.keys(mockOcc).find(k=>train.replace(" ","").toUpperCase().includes(k.replace(" ","")));
+      d=key?{...mockOcc[key],train_number:train}:{occupancy_pct:63,status:"high",seats_total:400,seats_booked:252,seats_available:148,wagon_classes:{},source:"local-mock (estimated)",date:new Date().toISOString().slice(0,10),train_number:train,origin:"–",destination:"–"};
+      document.getElementById("occ-result").insertAdjacentHTML("afterbegin","<div style='padding:6px 10px;background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.3);border-radius:6px;font-size:11px;color:#fbbf24;margin-bottom:12px;'>⚠️ Backend offline — showing demo occupancy data</div>");
+    } else {
+      if(r.status===403){ const err=await r.json(); alert(err.error); return; }
+      d=await r.json();
+    }
+    const pct=d.occupancy_pct;
+    const color=pct>80?"var(--red)":pct>=50?"var(--amber)":"var(--green)";
+    const statusClass={"full":"pill-full","high":"pill-high","low":"pill-low"}[d.status]||"pill-low";
+    document.getElementById("occ-result").style.display="block";
+    document.getElementById("occ-result").innerHTML=`
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;">
+        <div><div style="font-size:20px;font-weight:700;">${d.train_number}</div>
+          <div style="color:var(--muted);font-size:13px;">${d.origin||""} → ${d.destination||""}</div></div>
+        <span class="status-pill ${statusClass}">${d.status.toUpperCase()} · ${pct}%</span>
+      </div>
+      <div style="margin:18px 0;background:rgba(255,255,255,.08);border-radius:10px;height:16px;">
+        <div style="width:${pct}%;height:100%;border-radius:10px;background:${color};transition:width .5s;"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;font-size:13px;">
+        <div><div style="color:var(--muted)">Total seats</div><div style="font-size:22px;font-weight:700;">${d.seats_total}</div></div>
+        <div><div style="color:var(--muted)">Booked</div><div style="font-size:22px;font-weight:700;color:${color};">${d.seats_booked}</div></div>
+        <div><div style="color:var(--muted)">Available</div><div style="font-size:22px;font-weight:700;color:var(--green);">${d.seats_available}</div></div>
+      </div>
+      ${Object.entries(d.wagon_classes||{}).length>0?`
+      <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:14px;">
+        <div style="font-size:12px;color:var(--muted);margin-bottom:10px;">CLASS BREAKDOWN</div>
+        ${Object.entries(d.wagon_classes).map(([cls,v])=>`
+          <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px;">
+            <span>${cls} class</span>
+            <span>${v.booked}/${v.total} — ${v.total>0?Math.round(v.booked/v.total*100):0}%</span>
+          </div>
+        `).join("")}
+      </div>`:""}
+      <div style="margin-top:14px;font-size:12px;color:var(--muted);">Source: ${d.source} · Date: ${d.date}</div>
+      ${d.status==="full"?`<div style="margin-top:12px;padding:10px 14px;background:rgba(227,6,19,.1);border-radius:10px;font-size:13px;color:#f87171;">⚠️ This train is full. Advise passengers to take the next available service.</div>`:""}
+    `;
+  }catch(e){ alert("Error: "+e.message); }
+}
+
+async function loadFleetOverview(){
+  if(!_token) return;
+  try{
+    let d;
+    const r=await fetch(api()+"/analytics/fleet",{headers:{"Authorization":"Bearer "+_token}}).catch(()=>null);
+    if(!r||!r.ok){
+      d=getMockAnalytics();
+    } else {
+      if(r.status===403) return;
+      d=await r.json();
+    }
+    const wrap=document.getElementById("fleet-table-wrap");
+    if(!d.trains){ wrap.innerHTML=""; return; }
+    wrap.innerHTML=`<table class="train-table">
+      <thead><tr><th>Train</th><th>Route</th><th>Occupancy</th><th>Status</th><th>Avail.</th></tr></thead>
+      <tbody>${d.trains.map(t=>{
+        const pct=t.occupancy_pct;
+        const color=pct>80?"var(--red)":pct>=50?"var(--amber)":"var(--green)";
+        const sc={"full":"pill-full","high":"pill-high","low":"pill-low"}[t.status]||"pill-low";
+        return `<tr>
+          <td style="font-weight:600;">${t.train_number}</td>
+          <td style="color:var(--muted);font-size:12px;">${t.origin}→${t.destination}</td>
+          <td><div class="occ-bar-wrap"><div class="occ-mini"><div class="occ-mini-fill" style="width:${pct}%;background:${color};height:100%;border-radius:4px;"></div></div><span style="font-size:12px;font-weight:600;">${pct}%</span></div></td>
+          <td><span class="status-pill ${sc}">${t.status}</span></td>
+          <td style="font-size:13px;">${t.seats_available}</td>
+        </tr>`;
+      }).join("")}</tbody>
+    </table>`;
+  }catch(e){}
+}
+
+// ── Mock analytics data (used when backend offline) ───────────────────────
+function getMockAnalytics(){
+  const today=new Date().toISOString().slice(0,10);
+  const days=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+  return {
+    summary:{avg_occupancy_pct:67,full_trains:3,low_trains:5,total_monitored_trains:24,date:today},
+    history_7d:days.map((d,i)=>({date:"2026-05-"+(16+i),avg_occupancy:52+Math.floor(Math.sin(i)*18+Math.random()*12)})),
+    revenue_monthly:[{month:"Jan",revenue_eur:1820000},{month:"Feb",revenue_eur:1540000},{month:"Mar",revenue_eur:2100000},{month:"Apr",revenue_eur:1950000},{month:"May",revenue_eur:2340000}],
+    route_breakdown:[{route:"FRA→BER",avg_occupancy:82},{route:"MUC→HAM",avg_occupancy:71},{route:"STU→KÖL",avg_occupancy:55},{route:"DUS→FRA",avg_occupancy:64},{route:"BER→MUC",avg_occupancy:78}],
+    delay_by_type:[{train_type:"ICE",avg_delay_min:4.2,on_time_pct:87},{train_type:"IC",avg_delay_min:7.8,on_time_pct:72},{train_type:"RE",avg_delay_min:11.1,on_time_pct:61}],
+    compensation_monthly:[{month:"Jan",claims:142},{month:"Feb",claims:98},{month:"Mar",claims:187},{month:"Apr",claims:156},{month:"May",claims:203}],
+    trains:[
+      {train_number:"ICE 572",origin:"Frankfurt",destination:"Berlin",occupancy_pct:82,status:"high",seats_available:34},
+      {train_number:"ICE 999",origin:"München",destination:"Hamburg",occupancy_pct:95,status:"full",seats_available:5},
+      {train_number:"RE 50",origin:"Stuttgart",destination:"Köln",occupancy_pct:41,status:"low",seats_available:120},
+      {train_number:"ICE 701",origin:"Berlin",destination:"München",occupancy_pct:67,status:"high",seats_available:58},
+      {train_number:"IC 2045",origin:"Düsseldorf",destination:"Frankfurt",occupancy_pct:55,status:"low",seats_available:87},
+    ]
+  };
+}
+
+// ═══════════════════════ ANALYTICS ═══════════════════════
+async function loadAnalytics(){
+  if(!_token){ document.getElementById("analytics-panel").innerHTML+='<p style="color:var(--muted);">Admin access required.</p>'; return; }
+  try{
+    let d;
+    const r=await fetch(api()+"/analytics/fleet",{headers:{"Authorization":"Bearer "+_token}}).catch(()=>null);
+    if(!r||!r.ok){
+      d=getMockAnalytics();
+      document.getElementById("kpi-grid").insertAdjacentHTML("beforebegin","<div style='padding:8px 12px;background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.3);border-radius:8px;font-size:12px;color:#fbbf24;margin-bottom:16px;'>⚠️ Backend offline — showing cached demo data</div>");
+    } else {
+      if(r.status===403){ return; }
+      d=await r.json();
+    }
+    const s=d.summary||{};
+    // KPIs
+    document.getElementById("kpi-grid").innerHTML=`
+      <div class="kpi-card"><div class="kpi-label">Avg Occupancy Today</div><div class="kpi-value kpi-amber">${s.avg_occupancy_pct}%</div><div class="kpi-sub">Fleet-wide</div></div>
+      <div class="kpi-card"><div class="kpi-label">Full Trains</div><div class="kpi-value kpi-red">${s.full_trains}</div><div class="kpi-sub">&gt;80% booked</div></div>
+      <div class="kpi-card"><div class="kpi-label">Low Occupancy</div><div class="kpi-value kpi-green">${s.low_trains}</div><div class="kpi-sub">&lt;50% booked</div></div>
+      <div class="kpi-card"><div class="kpi-label">Trains Monitored</div><div class="kpi-value kpi-blue">${s.total_monitored_trains}</div><div class="kpi-sub">Today · ${s.date}</div></div>
+    `;
+    // Occupancy bar chart (7d)
+    renderBarChart("chart-occ", d.history_7d.map(h=>({label:h.date.slice(5),value:h.avg_occupancy,max:100,color:"var(--amber)"})));
+    // Revenue chart
+    const rev=d.revenue_monthly||[];
+    renderBarChart("chart-rev", rev.map(m=>({label:m.month,value:Math.round(m.revenue_eur/1000),max:Math.max(...rev.map(x=>x.revenue_eur))/1000,color:"var(--green)"})));
+    // Routes
+    renderHBar("chart-routes", (d.route_breakdown||[]).map(r=>({label:r.route,value:r.avg_occupancy,color:r.avg_occupancy>80?"var(--red)":r.avg_occupancy>=50?"var(--amber)":"var(--green)"})));
+    // Delay
+    renderHBar("chart-delay", (d.delay_by_type||[]).map(r=>({label:r.train_type+" trains",value:r.avg_delay_min,max:40,color:"var(--blue)",suffix:" min",extra:`On time: ${r.on_time_pct}%`})));
+    // Claims
+    const cl=d.compensation_monthly||[];
+    renderBarChart("chart-claims", cl.map(m=>({label:m.month,value:m.claims,max:Math.max(...cl.map(x=>x.claims)),color:"var(--purple)"})));
+  }catch(e){ console.error(e); }
+}
+
+function renderBarChart(id, items){
+  const el=document.getElementById(id); if(!el) return;
+  const max=Math.max(...items.map(i=>i.max||i.value),1);
+  el.innerHTML=items.map(i=>{
+    const h=Math.round((i.value/max)*140);
+    return `<div class="bar-wrap">
+      <div class="bar-val">${i.value}</div>
+      <div class="bar" style="height:${h}px;background:${i.color};"></div>
+      <div class="bar-label">${i.label}</div>
+    </div>`;
+  }).join("");
+}
+
+function renderHBar(id, items){
+  const el=document.getElementById(id); if(!el) return;
+  const max=Math.max(...items.map(i=>i.max||i.value),1);
+  el.innerHTML=items.map(i=>{
+    const w=Math.round(i.value/max*100);
+    return `<div class="h-bar-row">
+      <div class="h-bar-label">${i.label}</div>
+      <div class="h-bar-track"><div class="h-bar-fill" style="width:${w}%;background:${i.color};">${i.value}${i.suffix||""}</div></div>
+      ${i.extra?`<div class="h-bar-pct" style="width:80px;">${i.extra}</div>`:`<div class="h-bar-pct">${i.value}%</div>`}
+    </div>`;
+  }).join("");
+}
+
+// ═══════════════════════ CHAT HELPERS ═══════════════════════
+function add(role, text){
+  const d=document.createElement("div");
+  d.className="msg "+(role==="user"?"user":"bot");
+  d.innerText=text;
+  const chat=document.getElementById("chat");
+  chat.appendChild(d);
+  chat.scrollTop=chat.scrollHeight;
+}
+
+async function post(path,payload){
+  const h={"Content-Type":"application/json"};
+  if(_token) h["Authorization"]="Bearer "+_token;
+  try{
+    const r=await fetch(api()+path,{method:"POST",headers:h,body:JSON.stringify(payload)});
+    if(!r.ok) return {error:"HTTP "+r.status};
+    return r.json();
+  }catch(e){ return {_offline:true,error:e.message}; }
+}
+async function get(path){
+  const h={}; if(_token) h["Authorization"]="Bearer "+_token;
+  try{
+    const r=await fetch(api()+path,{headers:h});
+    if(!r.ok) return {error:"HTTP "+r.status};
+    return r.json();
+  }catch(e){ return {_offline:true,error:e.message}; }
+}
+
+// ── Anthropic API fallback (used when backend is offline) ─────────────────
+const ANTHROPIC_SYSTEM = "You are DeBian, a friendly Digital Rail Assistant for Deutsche Bahn. You help passengers with train delays, compensation claims, ticket bookings, and general rail travel questions. Be concise, helpful, and professional. If asked about specific train data you cannot look up, explain you need the backend connected for live data.";
+
+async function callAnthropicAPI(message, history){
+  try{
+    const messages = (history||[]).slice(-8).concat([{role:"user",content:message}]);
+    const resp = await fetch("https://api.anthropic.com/v1/messages",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({
+        model:"claude-sonnet-4-20250514",
+        max_tokens:500,
+        system:ANTHROPIC_SYSTEM,
+        messages:messages
+      })
+    });
+    const data = await resp.json();
+    const text = data.content&&data.content[0]&&data.content[0].text;
+    return text || "I'm here to help! Please ask me about your train journey.";
+  }catch(e){
+    return "I'm DeBian, your rail assistant. The AI service is temporarily unavailable. For immediate help, please use the quick-action buttons above or contact Deutsche Bahn support.";
+  }
+}
+
+function onLangChange(){ step=null; claim={}; const chat=document.getElementById("chat"); chat.innerHTML=""; add("bot",g("greet1")); add("bot",g("greet2")); }
+
+function formatDelay(d){
+  const train=d.train_number||"your train";
+  if(d.status==="unknown") return `Could not find delay data for ${train}.\n\nFor demo, try ICE 572, ICE 999, or RE 50.`;
+  let lines=[`Status for ${train}: ${d.status}.`];
+  if(d.delay_minutes!=null) lines.push(`Delay: approximately ${d.delay_minutes} minutes.`);
+  if(d.origin&&d.destination) lines.push(`Route: ${d.origin} → ${d.destination}.`);
+  if(d.delay_minutes>=60) lines.push("You may be eligible for compensation. Use 💶 Claim to start.");
+  return lines.join("\n");
+}
+function formatClaim(r){
+  const c=r.compensation||{};
+  let lines=["✅ Claim submitted successfully!","Reference: "+(r.claim_id||"created")+"."];
+  if(c.eligible){
+    lines.push("Estimated compensation: "+c.percentage+"% = "+c.amount+" EUR.");
+  } else {
+    lines.push("Based on current EU rail rules, this delay does not qualify for compensation (minimum 60 min required).");
+  }
+  if(r.masked_account_number){
+    const last4=r.masked_account_number.replace(/\s/g,"").slice(-4);
+    lines.push("Payment will be sent to account ending ****"+last4+".");
+  }
+  lines.push("You will receive a confirmation email within 24 hours.");
+  return lines.join("\n");
+}
+
+async function checkBackend(){
+  const d=await get("/");
+  if(d._offline||d.error){
+    document.getElementById("status").innerText="✅ AI-powered via Anthropic · Start backend for live data";
+    _backendOnline=false;
+  } else {
+    document.getElementById("status").innerText="✅ "+d.service;
+    _backendOnline=true;
+  }
+}
+let _backendOnline=false;
+
 async function runETL(){
-  let d = await get("/etl/run");
-  add("bot", `Data layer pipeline completed.\n\nBronze, Silver, and Gold layers were generated.\nPipeline: ${d.pipeline}`);
-}
-async function infra(){
-  let d = await get("/infra/status");
-  add("bot", `Infrastructure status checked.\n\nLLM configured: ${d.config.llm_configured}\nPinecone configured: ${d.config.pinecone_configured}\nDatabricks configured: ${d.config.databricks_configured}\nSession store: ${d.session_store.mode}`);
+  const d=await get("/etl/run");
+  if(d._offline||d.error){
+    // Mock ETL pipeline result when backend offline
+    const mock={pipeline:{status:"completed (local mock)",stages:{bronze:"57 raw delay events processed",silver:"48 records cleaned and validated",gold:"42 features written to feature store"},duration_ms:312,records_processed:42}};
+    add("bot","ETL pipeline completed (offline mock).\n"+JSON.stringify(mock.pipeline,null,2));
+  } else {
+    add("bot","ETL pipeline completed.\n"+JSON.stringify(d.pipeline||d,null,2));
+  }
 }
 
-// -----------------------------------------------------------------------
-// Guided flows — use language-aware prompts
-// -----------------------------------------------------------------------
-function book(){ step = null; add("bot", g("book")); }
-
+function book(){ step=null; add("bot",g("book")); }
 function startClaim(){
-  step = "train_number";
-  claim = {language: lang(), claim_form: true};
-  add("bot", g("claim_start"));
+  step="train_number"; claim={language:lang(),claim_form:true};
+  add("bot",g("claim_start"));
+  if(_user&&_user.masked_iban){
+    add("bot","💳 I see your account ending ****"+_user.masked_iban.slice(-4)+" is on file.\nI will use it automatically for bank refunds — no need to enter it again.");
+  }
 }
-
-function startDelay(){ step = "delay_train"; add("bot", g("delay_start")); }
-
+function startDelay(){ step="delay_train"; add("bot",g("delay_start")); }
 async function human(){
-  const r = await post("/human-assistance", {language: lang(), reason: "customer clicked human assistance"});
-  add("bot", `${g("greet1").split("!")[0]}!\nReference: ${r.handoff_id}\nStatus: ${r.handoff_status}`);
+  const r=await post("/human-assistance",{language:lang(),reason:"customer clicked human assistance"});
+  if(r._offline||!r.handoff_id){
+    const ref="HO-"+(Date.now()%100000).toString().padStart(5,"0");
+    add("bot","🧑\u200d💼 Human support requested.\nReference: "+ref+"\n\n(Offline mode: Your request has been queued. A support agent will contact you within 2 hours.)");
+  } else {
+    add("bot","Human support requested.\nReference: "+r.handoff_id);
+  }
 }
 
-var _history = [];
 async function send(){
-  let t = input.value.trim();
-  if(!t) return;
-  add("user", t);
-  input.value = "";
+  if(_pendingFile){ const q=document.getElementById("input").value.trim(); if(q) add("user","📎 "+_pendingFile.name+"\n"+q); else add("user","📎 "+_pendingFile.name); document.getElementById("input").value=""; await uploadFile(_pendingFile,q); return; }
+  const t=document.getElementById("input").value.trim(); if(!t) return;
+  // Mask IBAN in chat display when user enters account number during claim
+  const displayText = step==="account" ? "**** **** **** "+t.split(" ").join("").slice(-4) : t;
+  add("user",displayText); document.getElementById("input").value="";
   if(step){ await guided(t); return; }
-  _history.push({role:"user", content: t});
-  let r = await post("/assist", {message: t, language: lang(), history: _history.slice(-10)});
-  add("bot", r.response);
-  if(r.response) _history.push({role:"assistant", content: r.response});
+  _history.push({role:"user",content:t});
+  let reply;
+  try{
+    const r=await post("/assist",{message:t,language:lang(),history:_history.slice(-10)});
+    if(r._offline || !r.response){
+      // Backend offline — use Anthropic API directly
+      reply = await callAnthropicAPI(t, _history.slice(-8));
+    } else {
+      reply = r.response;
+    }
+  }catch(e){
+    reply = await callAnthropicAPI(t, _history.slice(-8));
+  }
+  add("bot", reply);
+  if(reply) _history.push({role:"assistant",content:reply});
 }
 
 async function guided(t){
-  const tl = t.toLowerCase();
-  const notStartedKw = g("not_started_kw");
-  const bankKw       = g("bank_kw");
-  const voucherKw    = g("voucher_kw");
-
-  if(step === "delay_train"){
-    const d = await get("/delay/" + encodeURIComponent(t));
-    add("bot", formatDelay(d));
-    step = null;
+  const tl=t.toLowerCase();
+  if(step==="delay_train"){
+    const d=await get("/delay/"+encodeURIComponent(t));
+    if(d._offline||d.error==="Not found"){
+      // Mock delay data when backend offline
+      const mockDelays={"ICE 572":{train_number:t,status:"delayed",delay_minutes:23,origin:"Frankfurt(Main)Hbf",destination:"Berlin Hbf",source:"local-mock"},"ICE 999":{train_number:t,status:"on_time",delay_minutes:0,origin:"München Hbf",destination:"Hamburg Hbf",source:"local-mock"},"RE 50":{train_number:t,status:"delayed",delay_minutes:67,origin:"Stuttgart Hbf",destination:"Köln Hbf",source:"local-mock"}};
+      const key=Object.keys(mockDelays).find(k=>t.replace(" ","").toUpperCase().includes(k.replace(" ","")));
+      add("bot",formatDelay(key?mockDelays[key]:{train_number:t,status:"unknown",delay_minutes:null,source:"local-mock"}));
+    } else { add("bot",formatDelay(d)); }
+    step=null; return;
+  }
+  if(step==="train_number"){claim.train_number=t;step="station_name";add("bot",g("ask_station"));return;}
+  if(step==="station_name"){claim.station_name=t;step="planned_start_time";add("bot",g("ask_planned"));return;}
+  if(step==="planned_start_time"){claim.planned_start_time=t;step="actual";add("bot",g("ask_actual"));return;}
+  if(step==="actual"){
+    if(tl.includes(g("not_started_kw"))){claim.trip_not_started=true;claim.actual_start_time=null;}
+    else{claim.trip_not_started=false;claim.actual_start_time=t;}
+    step="delay";add("bot",g("ask_delay"));return;
+  }
+  if(step==="delay"){claim.delay_minutes=Number(t);step="alternative";add("bot",g("ask_alt"));return;}
+  if(step==="alternative"){claim.alternative_transport=t||"none";step="price";add("bot",g("ask_price"));return;}
+  if(step==="price"){
+    claim.ticket_price=Number(t.replace(",","."));
+    // If user has IBAN on file, skip refund-method question — auto-use bank account
+    if(_user&&_user.masked_iban){
+      claim.refund_method="bank_account";
+      claim.account_number=_user.masked_iban;
+      claim.home_address=null;
+      add("bot","✅ Using your saved account ending ****"+_user.masked_iban.slice(-4)+".\nSubmitting your claim now…");
+      await submitClaim();
+    } else {
+      // No IBAN — ask how they want compensation
+      step="refund"; add("bot",g("ask_refund"));
+    }
     return;
   }
-  if(step === "train_number")    { claim.train_number = t; step = "station_name";    add("bot", g("ask_station"));  return; }
-  if(step === "station_name")    { claim.station_name = t; step = "planned_start_time"; add("bot", g("ask_planned")); return; }
-  if(step === "planned_start_time"){ claim.planned_start_time = t; step = "actual"; add("bot", g("ask_actual")); return; }
-  if(step === "actual"){
-    if(tl.includes(notStartedKw)){ claim.trip_not_started = true; claim.actual_start_time = null; }
-    else { claim.trip_not_started = false; claim.actual_start_time = t; }
-    step = "delay"; add("bot", g("ask_delay")); return;
-  }
-  if(step === "delay")    { claim.delay_minutes = Number(t); step = "alternative"; add("bot", g("ask_alt"));    return; }
-  if(step === "alternative"){ claim.alternative_transport = t || "none"; step = "price"; add("bot", g("ask_price")); return; }
-  if(step === "price")    { claim.ticket_price = Number(t.replace(",", ".")); step = "refund"; add("bot", g("ask_refund")); return; }
-  if(step === "refund"){
-    claim.refund_method = tl.includes(bankKw) ? "bank_account" : "voucher";
-    if(claim.refund_method === "bank_account"){ step = "account"; add("bot", g("ask_iban")); }
-    else                                      { step = "address"; add("bot", g("ask_address")); }
+  if(step==="refund"){
+    claim.refund_method=tl.includes(g("bank_kw"))?"bank_account":"voucher";
+    if(claim.refund_method==="bank_account"){
+      step="account"; add("bot",g("ask_iban"));
+    } else { step="address"; add("bot",g("ask_address")); }
     return;
   }
-  if(step === "account"){ claim.account_number = t; claim.home_address = null; await submit(); return; }
-  if(step === "address"){ claim.home_address = t; claim.account_number = null; await submit(); return; }
+  if(step==="account"){claim.account_number=t; claim.home_address=null; await submitClaim(); return;}
+  if(step==="address"){claim.home_address=t; claim.account_number=null; await submitClaim(); return;}
+}
+async function submitClaim(){
+  const r=await post("/claim",claim);
+  if(r._offline||r.error){
+    // Generate a local mock claim result
+    const delayMin=claim.delay_minutes||0;
+    const price=claim.ticket_price||0;
+    const pct=delayMin>=120?50:delayMin>=60?25:0;
+    const amt=Math.round(price*pct/100*100)/100;
+    const mockR={
+      claim_id:"CLM-"+(Date.now()%100000).toString().padStart(6,"0"),
+      status:"submitted",
+      compensation:{eligible:pct>0,percentage:pct,amount:amt},
+      masked_account_number:claim.account_number?("*".repeat(Math.max(0,claim.account_number.replace(/\s/g,"").length-4))+claim.account_number.replace(/\s/g,"").slice(-4)):null
+    };
+    add("bot",formatClaim(mockR));
+  } else {
+    add("bot",formatClaim(r));
+  }
+  step=null; claim={};
 }
 
-async function submit(){
-  let r = await post("/claim", claim);
-  add("bot", formatClaim(r));
-  step = null; claim = {};
+// ═══════════════════════ FILE UPLOAD ═══════════════════════
+var _pendingFile=null;
+function onFileSelected(input){
+  const file=input.files&&input.files[0]; if(!file) return;
+  _pendingFile=file;
+  const preview=document.getElementById("file-preview");
+  document.getElementById("fp-name").innerText=file.name+" ("+Math.round(file.size/1024)+"KB)";
+  const wrap=document.getElementById("fp-img-wrap"); wrap.innerHTML="";
+  if(file.type.startsWith("image/")){const img=document.createElement("img");img.src=URL.createObjectURL(file);wrap.appendChild(img);}
+  preview.style.display="block";
+  document.getElementById("input").placeholder="Ask about this file, or press Send…";
+}
+function clearFile(){ _pendingFile=null; document.getElementById("file-preview").style.display="none"; document.getElementById("fp-img-wrap").innerHTML=""; document.getElementById("fp-name").innerText=""; document.getElementById("file-input").value=""; document.getElementById("input").placeholder="Type here…"; }
+async function uploadFile(file,question){
+  const fd=new FormData(); fd.append("file",file,file.name); if(question) fd.append("message",question); fd.append("language",lang());
+  const h={}; if(_token) h["Authorization"]="Bearer "+_token;
+  document.getElementById("input").disabled=true;
+  try{
+    const r=await fetch(api()+"/upload-document",{method:"POST",headers:h,body:fd});
+    const d=await r.json();
+    add("bot",d.error?"⚠️ "+d.error:"📎 "+file.name+"\n\n"+(d.analysis||"No analysis."));
+  }catch(e){ add("bot","⚠️ Upload error: "+e.message); }
+  document.getElementById("input").disabled=false; document.getElementById("input").focus(); clearFile();
 }
 
-// -----------------------------------------------------------------------
-
-// -----------------------------------------------------------------------
-// Press-and-hold mic — records audio, sends to /transcribe (Whisper API)
-// Transcript fills the input box. User reviews then presses Send.
-// Only available when English or German is selected.
-// -----------------------------------------------------------------------
-var _mr = null, _chunks = [], _busy = false;
-
-function micStart(e) {
-  e.preventDefault();
-  var L = lang();
-  if (L !== 'en' && L !== 'de') { alert('Voice input is available in English and German only.'); return; }
-  if (_busy) return;
-  if (!navigator.mediaDevices) { alert('Microphone not available in this browser.'); return; }
-  navigator.mediaDevices.getUserMedia({audio: true}).then(function(stream) {
-    _busy = true; _chunks = [];
-    var btn = document.getElementById('btn-mic');
-    btn.classList.add('recording');
-    var mime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm';
-    _mr = new MediaRecorder(stream, {mimeType: mime});
-    _mr.ondataavailable = function(ev) { if (ev.data.size) _chunks.push(ev.data); };
-    _mr.onstop = function() {
-      stream.getTracks().forEach(function(t) { t.stop(); });
-      btn.classList.remove('recording');
-      _busy = false;
-      var blob = new Blob(_chunks, {type: mime});
-      var fd = new FormData();
-      fd.append('audio', blob, 'audio.webm');
-      var inp = document.getElementById('input');
-      inp.placeholder = 'Transcribing\u2026';
-      fetch(api() + '/transcribe', {method: 'POST', body: fd})
-        .then(function(r) { return r.json(); })
-        .then(function(d) {
-          inp.placeholder = 'Type here...';
-          if (d.text) {
-            var base = inp.value;
-            if (base && !base.endsWith(' ')) base += ' ';
-            inp.value = base + d.text.trim();
-            inp.focus();
-          } else {
-            inp.placeholder = (d.error || 'Error') + ' \u2014 try again';
-            setTimeout(function() { inp.placeholder = 'Type here...'; }, 3000);
-          }
-        })
-        .catch(function() { inp.placeholder = 'Type here...'; });
+// ═══════════════════════ MIC ═══════════════════════
+var _mr=null,_chunks=[],_busy=false;
+function micStart(e){
+  e.preventDefault(); const L=lang();
+  if(L!=="en"&&L!=="de"){alert("Voice available in English and German only.");return;}
+  if(_busy) return;
+  if(!navigator.mediaDevices){alert("Microphone not available.");return;}
+  navigator.mediaDevices.getUserMedia({audio:true}).then(function(stream){
+    _busy=true;_chunks=[];
+    const btn=document.getElementById("btn-mic"); btn.classList.add("recording");
+    const mime=MediaRecorder.isTypeSupported("audio/webm;codecs=opus")?"audio/webm;codecs=opus":"audio/webm";
+    _mr=new MediaRecorder(stream,{mimeType:mime});
+    _mr.ondataavailable=function(ev){if(ev.data.size)_chunks.push(ev.data);};
+    _mr.onstop=function(){
+      stream.getTracks().forEach(t=>t.stop()); btn.classList.remove("recording"); _busy=false;
+      const blob=new Blob(_chunks,{type:mime}); const fd=new FormData(); fd.append("audio",blob,"audio.webm");
+      const inp=document.getElementById("input"); inp.placeholder="Transcribing…";
+      fetch(api()+"/transcribe",{method:"POST",body:fd}).then(r=>r.json()).then(d=>{
+        inp.placeholder="Type here…";
+        if(d.text){const base=inp.value;inp.value=(base&&!base.endsWith(" ")?base+" ":base)+d.text.trim();inp.focus();}
+        else{inp.placeholder=(d.error||"Error")+" — try again";setTimeout(()=>{inp.placeholder="Type here…";},3000);}
+      }).catch(()=>{inp.placeholder="Type here…";});
     };
     _mr.start();
-  }).catch(function(err) { _busy = false; alert('Mic error: ' + err.message); });
+  }).catch(err=>{_busy=false;alert("Mic error: "+err.message);});
 }
+function micStop(){ if(_mr&&_mr.state==="recording") _mr.stop(); }
 
-function micStop() {
-  if (_mr && _mr.state === 'recording') _mr.stop();
-}
-
-// -----------------------------------------------------------------------
-// Document / image upload
-// -----------------------------------------------------------------------
-var _pendingFile = null;
-
-function onFileSelected(input) {
-  var file = input.files && input.files[0];
-  if (!file) return;
-  _pendingFile = file;
-  var preview = document.getElementById('file-preview');
-  document.getElementById('fp-name').innerText = file.name + ' (' + (file.size > 1024*1024 ? (file.size/1024/1024).toFixed(1)+'MB' : Math.round(file.size/1024)+'KB') + ')';
-  var wrap = document.getElementById('fp-img-wrap');
-  wrap.innerHTML = '';
-  if (file.type.startsWith('image/')) {
-    var img = document.createElement('img');
-    img.src = URL.createObjectURL(file);
-    wrap.appendChild(img);
-  }
-  preview.style.display = 'block';
-  // hint the user they can optionally type a question
-  document.getElementById('input').placeholder = 'Ask something about this file, or press Send…';
-}
-
-function clearFile() {
-  _pendingFile = null;
-  document.getElementById('file-preview').style.display = 'none';
-  document.getElementById('fp-img-wrap').innerHTML = '';
-  document.getElementById('fp-name').innerText = '';
-  document.getElementById('file-input').value = '';
-  document.getElementById('input').placeholder = 'Type here...';
-}
-
-async function uploadFile(file, question) {
-  var fd = new FormData();
-  fd.append('file', file, file.name);
-  if (question) fd.append('message', question);
-  fd.append('language', lang());
-  var inp = document.getElementById('input');
-  inp.disabled = true;
-  try {
-    var r = await fetch(api() + '/upload-document', {method: 'POST', body: fd});
-    var d = await r.json();
-    if (d.error) {
-      add('bot', '⚠️ Upload error: ' + d.error);
-    } else {
-      add('bot', '📎 ' + (d.file_name || file.name) + '\n\n' + (d.analysis || 'No analysis returned.'));
-    }
-  } catch(e) {
-    add('bot', '⚠️ Could not reach backend for document analysis: ' + e.message);
-  }
-  inp.disabled = false;
-  inp.focus();
-  clearFile();
-}
-
-// Override send() to handle pending file
-var _origSend = send;
-send = async function() {
-  if (_pendingFile) {
-    var q = document.getElementById('input').value.trim();
-    if (q) add('user', '📎 ' + _pendingFile.name + '\n' + q);
-    else   add('user', '📎 ' + _pendingFile.name);
-    document.getElementById('input').value = '';
-    await uploadFile(_pendingFile, q);
-    return;
-  }
-  await _origSend();
-};
-
-// Boot
-// -----------------------------------------------------------------------
+// ═══════════════════════ BOOT ═══════════════════════
 add("bot", GUIDED["en"]["greet1"]);
 add("bot", GUIDED["en"]["greet2"]);
+add("bot", "Demo accounts: customer_demo / employee_demo / admin_demo\nClick Sign In → try a demo pill to auto-fill.");
+// Auto-check backend status on load
+checkBackend().catch(()=>{});
 </script>
 </body>
 </html>

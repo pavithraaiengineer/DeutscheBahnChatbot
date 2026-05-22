@@ -20,6 +20,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote, urlparse
 
 from app.agents.debian_agent import DeBianAgent
+from app.auth import login, register, update_iban, get_profile, require_role, decode_token
 from app.config import config_status
 from app.databricks.etl_pipeline import run_etl_pipeline, read_feature_table
 from app.databricks.feature_store import get_delay_features
@@ -30,12 +31,21 @@ from app.session_store.firestore_store import save_session, save_claim, get_stor
 from app.tools.compensation_tool import submit_compensation_claim
 from app.tools.delay_tool import get_delay_status
 from app.tools.human_handoff_tool import request_human_handoff
+from app.tools.occupancy_tool import get_occupancy, get_fleet_analytics
 from app.tools.route_tool import get_alternative_routes
 
 
 HOST = "0.0.0.0"
 PORT = int(os.environ.get("PORT", "8000"))
 AGENT = DeBianAgent()
+
+
+def _bearer(handler: BaseHTTPRequestHandler) -> str:
+    """Extract Bearer token from Authorization header."""
+    auth = handler.headers.get("Authorization", "")
+    if auth.startswith("Bearer "):
+        return auth[7:]
+    return ""
 
 
 def send_json(handler: BaseHTTPRequestHandler, status_code: int, payload: dict) -> None:
@@ -149,6 +159,31 @@ class DeBianHandler(BaseHTTPRequestHandler):
         if path == "/eval/run":
             return send_json(self, 200, run_eval_suite())
 
+        # --- occupancy (employee/admin only) --------------------------------
+        if path.startswith("/occupancy/"):
+            token_payload, err = require_role(_bearer(self), "employee")
+            if err:
+                return send_json(self, 403, {"error": err})
+            train_number = unquote(path.replace("/occupancy/", "", 1))
+            return send_json(self, 200, get_occupancy(train_number))
+
+        # --- analytics dashboard (admin only) --------------------------------
+        if path == "/analytics/fleet":
+            token_payload, err = require_role(_bearer(self), "admin")
+            if err:
+                return send_json(self, 403, {"error": err})
+            return send_json(self, 200, get_fleet_analytics())
+
+        # --- user profile (any authenticated user) --------------------------
+        if path == "/user/profile":
+            token_payload, err = require_role(_bearer(self), "customer")
+            if err:
+                return send_json(self, 403, {"error": err})
+            profile = get_profile(token_payload["sub"])
+            if not profile:
+                return send_json(self, 404, {"error": "User not found."})
+            return send_json(self, 200, profile)
+
         if path == "/stream":
             message = query.get("message", ["Hello"])[0]
             language = query.get("language", ["en"])[0]
@@ -214,6 +249,41 @@ class DeBianHandler(BaseHTTPRequestHandler):
 
         if path == "/upload-document":
             return _handle_upload_document(self)
+
+        # --- auth -----------------------------------------------------------
+        if path == "/auth/login":
+            try:
+                body = self.read_json()
+                result = login(body.get("username", ""), body.get("password", ""))
+                return send_json(self, 200 if result["success"] else 401, result)
+            except Exception as e:
+                return send_json(self, 500, {"error": str(e)})
+
+        if path == "/auth/register":
+            try:
+                body = self.read_json()
+                result = register(
+                    username=body.get("username", ""),
+                    password=body.get("password", ""),
+                    full_name=body.get("full_name", ""),
+                    email=body.get("email", ""),
+                    role=body.get("role", "customer"),
+                )
+                return send_json(self, 200 if result["success"] else 400, result)
+            except Exception as e:
+                return send_json(self, 500, {"error": str(e)})
+
+        # --- IBAN update (customer only) -------------------------------------
+        if path == "/user/iban":
+            token_payload, err = require_role(_bearer(self), "customer")
+            if err:
+                return send_json(self, 403, {"error": err})
+            try:
+                body = self.read_json()
+                result = update_iban(token_payload["sub"], body.get("iban", ""))
+                return send_json(self, 200 if result["success"] else 400, result)
+            except Exception as e:
+                return send_json(self, 500, {"error": str(e)})
 
         try:
             payload = self.read_json()

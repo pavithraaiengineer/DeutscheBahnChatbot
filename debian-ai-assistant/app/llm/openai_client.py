@@ -16,7 +16,8 @@ from app.llm.prompt_builder import SYSTEM_PROMPT, build_llm_input
 from app.tools.pii_masking_tool import mask_pii_text
 
 
-OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses"
+OPENAI_CHAT_URL = "https://api.openai.com/v1/chat/completions"
+OPENAI_RESPONSES_URL = OPENAI_CHAT_URL  # alias for compatibility
 
 
 def llm_status() -> dict:
@@ -67,13 +68,13 @@ def generate_llm_response(
 
     payload = {
         "model": model,
-        "input": messages,
+        "messages": messages,
         "temperature": 0.2,
-        "max_output_tokens": 450,
+        "max_tokens": 450,
     }
 
     request = urllib.request.Request(
-        OPENAI_RESPONSES_URL,
+        OPENAI_CHAT_URL,
         data=json.dumps(payload).encode("utf-8"),
         headers={
             "Authorization": f"Bearer {api_key}",
@@ -112,13 +113,21 @@ def generate_llm_response(
 
 
 def _extract_output_text(data: dict) -> str:
+    # Standard Chat Completions API response format
+    choices = data.get("choices", [])
+    if choices:
+        msg = choices[0].get("message", {})
+        if isinstance(msg.get("content"), str):
+            return msg["content"]
+
+    # Fallback: Responses API format
     if isinstance(data.get("output_text"), str):
         return data["output_text"]
 
     texts = []
     for item in data.get("output", []):
-        for content in item.get("content", []):
-            if content.get("type") in {"output_text", "text"} and isinstance(content.get("text"), str):
-                texts.append(content["text"])
+        for block in item.get("content", []):
+            if block.get("type") in {"output_text", "text"} and isinstance(block.get("text"), str):
+                texts.append(block["text"])
 
     return "\n".join(texts).strip()
