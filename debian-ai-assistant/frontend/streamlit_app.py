@@ -10,7 +10,30 @@ Open:
 
 from __future__ import annotations
 
+import os
+from pathlib import Path
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+# ---------------------------------------------------------------------------
+# Load .env from the project root (two levels up from this file) so that
+# OPENAI_API_KEY and other vars are available without manually exporting them.
+# ---------------------------------------------------------------------------
+def _load_dotenv() -> None:
+    try:
+        from dotenv import load_dotenv  # python-dotenv (in requirements.txt)
+        env_path = Path(__file__).resolve().parent.parent / ".env"
+        load_dotenv(dotenv_path=env_path, override=False)
+    except ImportError:
+        # Fallback: parse .env manually if python-dotenv isn't installed
+        env_path = Path(__file__).resolve().parent.parent / ".env"
+        if env_path.exists():
+            for line in env_path.read_text().splitlines():
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    k, _, v = line.partition("=")
+                    os.environ.setdefault(k.strip(), v.strip())
+
+_load_dotenv()
 
 
 # ---------------------------------------------------------------------------
@@ -224,6 +247,8 @@ FALLBACK_HTML = r"""
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>DeBian – Digital Rail Assistant</title>
+  <!-- API key injected at serve-time by FallbackHandler -->
+  <script>window.OPENAI_API_KEY="__OPENAI_KEY__";</script>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;700&display=swap');
     :root{--red:#e30613;--bg:#0d0d10;--panel:rgba(255,255,255,.07);--panel2:rgba(255,255,255,.04);--border:rgba(255,255,255,.13);--muted:#888;--green:#22c55e;--amber:#f59e0b;--blue:#3b82f6;--purple:#a855f7;}
@@ -562,7 +587,7 @@ async function doLogin(){
   if(!username||!password){ modalErr("Please enter username and password."); return; }
   // Offline demo accounts (used when backend is not running)
   const DEMO_ACCOUNTS={
-    "customer_demo":{password:"customer123",user:{user_id:"customer_demo",username:"customer_demo",full_name:"Anna Müller",email:"anna@demo.de",role:"customer",masked_iban:"********************0130"}},
+    "customer_demo":{password:"customer123",user:{user_id:"customer_demo",username:"customer_demo",full_name:"Maria Müller",email:"maria@example.com",role:"customer",masked_iban:"********************3000"}},
     "employee_demo":{password:"employee123",user:{user_id:"employee_demo",username:"employee_demo",full_name:"Hans Schmidt",email:"hans@bahn.de",role:"employee",masked_iban:null}},
     "admin_demo":{password:"admin123",user:{user_id:"admin_demo",username:"admin_demo",full_name:"Dr. Klaus Weber",email:"admin@bahn.de",role:"admin",masked_iban:null}},
   };
@@ -576,7 +601,7 @@ async function doLogin(){
       if(demo&&demo.password===password){
         _token="demo-token-offline"; _user=demo.user;
         closeModal(); applyAuth();
-        add("bot","✅ Welcome back, "+_user.full_name+"! Role: "+_user.role+". (Offline mode — AI powered by Anthropic)");
+        add("bot","✅ Welcome back, "+_user.full_name+"! Role: "+_user.role+". (Offline mode — AI powered by OpenAI)");
         return;
       }
       if(d&&!d.success) modalErr(d.error||"Login failed.");
@@ -857,24 +882,25 @@ async function get(path){
   }catch(e){ return {_offline:true,error:e.message}; }
 }
 
-// ── Anthropic API fallback (used when backend is offline) ─────────────────
+// ── OpenAI API fallback (used when backend is offline) ─────────────────
 const ANTHROPIC_SYSTEM = "You are DeBian, a friendly Digital Rail Assistant for Deutsche Bahn. You help passengers with train delays, compensation claims, ticket bookings, and general rail travel questions. Be concise, helpful, and professional. If asked about specific train data you cannot look up, explain you need the backend connected for live data.";
 
-async function callAnthropicAPI(message, history){
+async function callOpenAIAPI(message, history){
   try{
-    const messages = (history||[]).slice(-8).concat([{role:"user",content:message}]);
-    const resp = await fetch("https://api.anthropic.com/v1/messages",{
+    const messages = [{role:"system",content:ANTHROPIC_SYSTEM}]
+      .concat((history||[]).slice(-8))
+      .concat([{role:"user",content:message}]);
+    const resp = await fetch("https://api.openai.com/v1/chat/completions",{
       method:"POST",
-      headers:{"Content-Type":"application/json"},
+      headers:{"Content-Type":"application/json","Authorization":"Bearer "+(window.OPENAI_API_KEY||"")},
       body:JSON.stringify({
-        model:"claude-sonnet-4-20250514",
+        model:"gpt-4.1-mini",
         max_tokens:500,
-        system:ANTHROPIC_SYSTEM,
         messages:messages
       })
     });
     const data = await resp.json();
-    const text = data.content&&data.content[0]&&data.content[0].text;
+    const text = data.choices&&data.choices[0]&&data.choices[0].message&&data.choices[0].message.content;
     return text || "I'm here to help! Please ask me about your train journey.";
   }catch(e){
     return "I'm DeBian, your rail assistant. The AI service is temporarily unavailable. For immediate help, please use the quick-action buttons above or contact Deutsche Bahn support.";
@@ -911,7 +937,7 @@ function formatClaim(r){
 async function checkBackend(){
   const d=await get("/");
   if(d._offline||d.error){
-    document.getElementById("status").innerText="✅ AI-powered via Anthropic · Start backend for live data";
+    document.getElementById("status").innerText="✅ AI-powered via OpenAI · Start backend for live data";
     _backendOnline=false;
   } else {
     document.getElementById("status").innerText="✅ "+d.service;
@@ -932,13 +958,7 @@ async function runETL(){
 }
 
 function book(){ step=null; add("bot",g("book")); }
-function startClaim(){
-  step="train_number"; claim={language:lang(),claim_form:true};
-  add("bot",g("claim_start"));
-  if(_user&&_user.masked_iban){
-    add("bot","💳 I see your account ending ****"+_user.masked_iban.slice(-4)+" is on file.\nI will use it automatically for bank refunds — no need to enter it again.");
-  }
-}
+function startClaim(){ step="train_number"; claim={language:lang(),claim_form:true}; add("bot",g("claim_start")); }
 function startDelay(){ step="delay_train"; add("bot",g("delay_start")); }
 async function human(){
   const r=await post("/human-assistance",{language:lang(),reason:"customer clicked human assistance"});
@@ -962,13 +982,13 @@ async function send(){
   try{
     const r=await post("/assist",{message:t,language:lang(),history:_history.slice(-10)});
     if(r._offline || !r.response){
-      // Backend offline — use Anthropic API directly
-      reply = await callAnthropicAPI(t, _history.slice(-8));
+      // Backend offline — use OpenAI API directly
+      reply = await callOpenAIAPI(t, _history.slice(-8));
     } else {
       reply = r.response;
     }
   }catch(e){
-    reply = await callAnthropicAPI(t, _history.slice(-8));
+    reply = await callOpenAIAPI(t, _history.slice(-8));
   }
   add("bot", reply);
   if(reply) _history.push({role:"assistant",content:reply});
@@ -1056,15 +1076,65 @@ function onFileSelected(input){
 }
 function clearFile(){ _pendingFile=null; document.getElementById("file-preview").style.display="none"; document.getElementById("fp-img-wrap").innerHTML=""; document.getElementById("fp-name").innerText=""; document.getElementById("file-input").value=""; document.getElementById("input").placeholder="Type here…"; }
 async function uploadFile(file,question){
-  const fd=new FormData(); fd.append("file",file,file.name); if(question) fd.append("message",question); fd.append("language",lang());
-  const h={}; if(_token) h["Authorization"]="Bearer "+_token;
-  document.getElementById("input").disabled=true;
+  const inputEl=document.getElementById("input");
+  inputEl.disabled=true;
+  add("bot","🔍 Analysing "+file.name+"…");
   try{
-    const r=await fetch(api()+"/upload-document",{method:"POST",headers:h,body:fd});
-    const d=await r.json();
-    add("bot",d.error?"⚠️ "+d.error:"📎 "+file.name+"\n\n"+(d.analysis||"No analysis."));
-  }catch(e){ add("bot","⚠️ Upload error: "+e.message); }
-  document.getElementById("input").disabled=false; document.getElementById("input").focus(); clearFile();
+    // Route through the backend /upload-document endpoint so the API key
+    // stays server-side and CORS is never an issue.
+    const fd=new FormData();
+    fd.append("file",file,file.name);
+    if(question) fd.append("message",question);
+    fd.append("language",lang());
+
+    const backendUrl=api()+"/upload-document";
+    const headers={};
+    if(_token) headers["Authorization"]="Bearer "+_token;
+
+    const resp=await fetch(backendUrl,{method:"POST",headers,body:fd});
+
+    if(!resp.ok){
+      // Backend offline or returned an error — fall back to OpenAI direct call
+      
+      throw new Error("Backend returned "+resp.status);
+    }
+
+    const data=await resp.json();
+    const text=data.analysis||data.error||"⚠️ Could not analyse the file.";
+    add("bot",text);
+  }catch(e){
+    // Last-resort fallback: call OpenAI API directly
+    try{
+      const base64=await new Promise((res,rej)=>{
+        const r=new FileReader();
+        r.onload=()=>res(r.result.split(",")[1]);
+        r.onerror=()=>rej(new Error("Could not read file"));
+        r.readAsDataURL(file);
+      });
+      const mime=file.type||"image/jpeg";
+      const isImage=mime.startsWith("image/");
+      const isPdf=mime==="application/pdf";
+      const prompt=question||(isImage?"Analyse this image. If it is a train ticket extract all details: train number, route, origin, destination, date, time, price, class, validity. Present clearly.":"Analyse this document and extract all relevant information.");
+      let msgContent;
+      if(isImage){
+        // OpenAI vision format
+        msgContent=[{type:"image_url",image_url:{url:"data:"+mime+";base64,"+base64}},{type:"text",text:prompt}];
+      } else {
+        msgContent=[{type:"text",text:"File: "+file.name+"\n\n"+(isPdf?"(PDF – upload to backend for full analysis)\n\n":"")+prompt}];
+      }
+      const OPENAI_KEY=window.OPENAI_API_KEY||"";
+      if(!OPENAI_KEY) throw new Error("No API key available and backend is offline.");
+      const fbResp=await fetch("https://api.openai.com/v1/chat/completions",{
+        method:"POST",
+        headers:{"Content-Type":"application/json","Authorization":"Bearer "+OPENAI_KEY},
+        body:JSON.stringify({model:"gpt-4.1-mini",max_tokens:1000,messages:[{role:"system",content:ANTHROPIC_SYSTEM},{role:"user",content:msgContent}]})
+      });
+      const fbData=await fbResp.json();
+      const fbText=fbData.choices&&fbData.choices[0]&&fbData.choices[0].message&&fbData.choices[0].message.content;
+      add("bot",fbText||"⚠️ Could not analyse the file.");
+    }catch(e2){ add("bot","⚠️ Could not process file: "+e2.message); }
+  }
+  inputEl.disabled=false; inputEl.focus(); clearFile();
 }
 
 // ═══════════════════════ MIC ═══════════════════════
@@ -1112,7 +1182,11 @@ class FallbackHandler(BaseHTTPRequestHandler):
         pass
 
     def do_GET(self) -> None:
-        body = FALLBACK_HTML.encode("utf-8")
+        # Inject OPENAI_API_KEY from environment into the page at serve-time.
+        # The HTML contains the placeholder  __OPENAI_KEY__  which we swap out
+        # here so the key is never stored in source code.
+        api_key = os.environ.get("OPENAI_API_KEY", "")
+        body = FALLBACK_HTML.replace("__OPENAI_KEY__", api_key).encode("utf-8")
         self.send_response(200)
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
