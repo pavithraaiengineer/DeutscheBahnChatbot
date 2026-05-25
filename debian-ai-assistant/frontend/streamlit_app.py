@@ -286,6 +286,28 @@ FALLBACK_HTML = r"""
     #chat-panel{display:flex;height:100%;flex-direction:column;padding:0;}
     .chat-box{flex:1;overflow-y:auto;background:#fff;margin:0 20px;border:1px solid var(--border);border-radius:18px;padding:14px;min-height:0;}
     .msg{max-width:82%;padding:11px 14px;border-radius:14px;margin:8px 0;white-space:pre-wrap;line-height:1.5;font-size:14px;}
+    /* ─── RAG source tags ─── */
+    .msg-wrap{display:flex;flex-direction:column;max-width:82%;margin:8px 0;}
+    .msg-wrap .msg{margin:0;}
+    .source-tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:5px;padding-left:2px;}
+    .src-tag{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:600;background:#fff3f3;border:1px solid rgba(227,6,19,.25);color:#e30613;cursor:pointer;transition:background .15s;white-space:nowrap;}
+    .src-tag:hover{background:rgba(227,6,19,.15);}
+    .src-tag .src-dot{width:6px;height:6px;border-radius:50%;background:#e30613;display:inline-block;}
+    /* ─── Source side panel ─── */
+    #source-panel{position:fixed;top:0;right:0;width:360px;max-width:92vw;height:100vh;background:#fff;border-left:2px solid var(--border);z-index:999;display:none;flex-direction:column;box-shadow:-4px 0 24px rgba(0,0,0,.08);}
+    #source-panel.open{display:flex;}
+    #sp-header{display:flex;align-items:center;justify-content:space-between;padding:18px 20px 14px;border-bottom:1px solid var(--border);flex-shrink:0;}
+    #sp-header h3{font-family:'Space Grotesk',sans-serif;font-size:16px;font-weight:700;color:#1a1a1a;margin:0;}
+    #sp-close{background:none;border:none;font-size:20px;cursor:pointer;color:#888;padding:0 4px;}
+    #sp-close:hover{color:#e30613;}
+    #sp-body{flex:1;overflow-y:auto;padding:16px 20px;}
+    .sp-doc{background:#fafafa;border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:14px;}
+    .sp-doc-id{font-size:10px;font-weight:700;letter-spacing:.08em;color:#e30613;text-transform:uppercase;margin-bottom:4px;}
+    .sp-doc-type{font-size:11px;color:#888;margin-bottom:8px;}
+    .sp-doc-text{font-size:13px;color:#1a1a1a;line-height:1.6;white-space:pre-wrap;}
+    .sp-doc-score{font-size:11px;color:#aaa;margin-top:8px;}
+    .sp-doc-url{display:inline-block;margin-top:6px;font-size:11px;color:#e30613;word-break:break-all;}
+    .sp-empty{color:#aaa;font-size:13px;text-align:center;margin-top:40px;}
     .bot{background:#f5f5f5;border:1px solid #e8e8e8;color:#1a1a1a;}
     .user{background:var(--red);color:white;margin-left:auto;max-width:fit-content;}
     .chat-input-area{padding:12px 20px 16px;display:flex;flex-direction:column;gap:8px;background:#fafafa;}
@@ -423,6 +445,17 @@ FALLBACK_HTML = r"""
 <div id="main-area">
 
 <!-- ── Chat Panel ─────────────────────────────────────────────────────────── -->
+<!-- RAG Source Side Panel -->
+<div id="source-panel">
+  <div id="sp-header">
+    <h3>📄 Source Documents</h3>
+    <button id="sp-close" onclick="closeSourcePanel()">✕</button>
+  </div>
+  <div id="sp-body">
+    <p class="sp-empty">Click a source tag on a message to view the RAG document.</p>
+  </div>
+</div>
+
 <div id="chat-panel" style="display:flex;flex-direction:column;height:100%;overflow:hidden;">
 
   <div id="chat" class="chat-box"></div>
@@ -840,13 +873,100 @@ function renderHBar(id, items){
 }
 
 // ═══════════════════════ CHAT HELPERS ═══════════════════════
-function add(role, text){
-  const d=document.createElement("div");
-  d.className="msg "+(role==="user"?"user":"bot");
-  d.innerText=text;
-  const chat=document.getElementById("chat");
-  chat.appendChild(d);
-  chat.scrollTop=chat.scrollHeight;
+
+// Global store: messageId → array of RAG source docs
+const _ragSources = {};
+let _msgCounter = 0;
+
+function add(role, text, sources){
+  const chat = document.getElementById("chat");
+
+  if(role === "bot" && sources && sources.length > 0){
+    const msgId = "msg-" + (++_msgCounter);
+    _ragSources[msgId] = sources;
+
+    const wrap = document.createElement("div");
+    wrap.className = "msg-wrap";
+
+    const d = document.createElement("div");
+    d.className = "msg bot";
+    d.innerText = text;
+    wrap.appendChild(d);
+
+    // Source tags row
+    const tags = document.createElement("div");
+    tags.className = "source-tags";
+    sources.forEach((src, i) => {
+      const id   = src.id || src.metadata?.id || ("doc-"+(i+1));
+      const type = src.metadata?.document_type || src.document_type || "source";
+      const btn  = document.createElement("button");
+      btn.className = "src-tag";
+      btn.innerHTML = `<span class="src-dot"></span>${formatDocLabel(id, type)}`;
+      btn.onclick = () => openSourcePanel(msgId, i);
+      tags.appendChild(btn);
+    });
+    wrap.appendChild(tags);
+    chat.appendChild(wrap);
+  } else {
+    const d = document.createElement("div");
+    d.className = "msg " + (role === "user" ? "user" : "bot");
+    d.innerText = text;
+    chat.appendChild(d);
+  }
+  chat.scrollTop = chat.scrollHeight;
+}
+
+function formatDocLabel(id, type){
+  // Convert "offer_delay_tiers_en" → "Offer Delay" etc.
+  const clean = id.replace(/_en$|_de$|_fr$/,"").replace(/_/g," ");
+  const words = clean.split(" ").slice(0,3);
+  return words.map(w=>w.charAt(0).toUpperCase()+w.slice(1)).join(" ");
+}
+
+function openSourcePanel(msgId, docIndex){
+  const sources = _ragSources[msgId] || [];
+  const body = document.getElementById("sp-body");
+  body.innerHTML = "";
+
+  if(!sources.length){
+    body.innerHTML = '<p class="sp-empty">No source documents available.</p>';
+  } else {
+    sources.forEach((src, i) => {
+      const meta     = src.metadata || src;
+      const id       = src.id || meta.id || "unknown";
+      const type     = meta.document_type || "—";
+      const category = meta.category || "—";
+      const lang     = meta.language || "—";
+      const score    = src.score != null ? (src.score*100).toFixed(1)+"%" : "—";
+      const url      = meta.source_url || "";
+      const text     = meta.text || "";
+
+      const card = document.createElement("div");
+      card.className = "sp-doc";
+      if(i === docIndex) card.style.borderColor = "#e30613";
+
+      card.innerHTML =
+        `<div class="sp-doc-id">${id}</div>` +
+        `<div class="sp-doc-type">${type} · ${category} · ${lang.toUpperCase()} · Relevance: ${score}</div>` +
+        `<div class="sp-doc-text">${text.replace(/</g,"&lt;")}</div>` +
+        (url ? `<a class="sp-doc-url" href="${url.startsWith("http")? url:"#"}" target="_blank"
+          onclick="${url.startsWith("internal")?"showInternalDoc('"+id+"');return false;":""}">
+          🔗 ${url}</a>` : "");
+
+      body.appendChild(card);
+    });
+  }
+
+  document.getElementById("source-panel").classList.add("open");
+}
+
+function showInternalDoc(id){
+  // For internal:// URLs open the panel already showing — nothing extra needed
+  console.log("Internal doc:", id);
+}
+
+function closeSourcePanel(){
+  document.getElementById("source-panel").classList.remove("open");
 }
 
 function addOptions(){
@@ -987,7 +1107,7 @@ async function send(){
   add("user",displayText); document.getElementById("input").value="";
   if(step){ await guided(t); return; }
   _history.push({role:"user",content:t});
-  let reply;
+  let reply, ragSources = [];
   try{
     const r=await post("/assist",{message:t,language:lang(),history:_history.slice(-10)});
     if(r._offline || !r.response){
@@ -995,11 +1115,14 @@ async function send(){
       reply = await callOpenAIAPI(t, _history.slice(-8));
     } else {
       reply = r.response;
+      // Extract RAG source documents from response
+      const docs = r.rag_context && r.rag_context.documents;
+      if(docs && docs.length) ragSources = docs;
     }
   }catch(e){
     reply = await callOpenAIAPI(t, _history.slice(-8));
   }
-  add("bot", reply);
+  add("bot", reply, ragSources);
   if(reply) _history.push({role:"assistant",content:reply});
 }
 
