@@ -13,7 +13,6 @@ Production can replace this with FastAPI while preserving the same modules.
 
 from __future__ import annotations
 
-from importlib.resources import path
 import json
 import os
 import time
@@ -26,6 +25,7 @@ from app.config import config_status
 from app.databricks.etl_pipeline import run_etl_pipeline, read_feature_table
 from app.databricks.feature_store import get_delay_features
 from app.evaluation.eval_pipeline import run_eval_suite
+from app.evaluation.rag_eval_pipeline import run_rag_eval_suite
 from app.rag.retriever import search_rag, upsert_rag_documents
 from app.security.governance import sanitize_payload, governance_status
 from app.session_store.firestore_store import save_session, save_claim, get_store_status
@@ -34,6 +34,9 @@ from app.tools.delay_tool import get_delay_status
 from app.tools.human_handoff_tool import request_human_handoff
 from app.tools.occupancy_tool import get_occupancy, get_fleet_analytics
 from app.tools.route_tool import get_alternative_routes
+from app.tools.realtime_board_tool import get_departures, get_arrivals
+from app.tools.journey_planner_tool import search_journeys, get_ticket_classes
+from app.tools.ticket_booking_tool import build_booking_summary, next_booking_prompt, BOOKING_STEPS, recommend_ticket
 
 
 HOST = "0.0.0.0"
@@ -150,20 +153,36 @@ class DeBianHandler(BaseHTTPRequestHandler):
             train = query.get("train", [""])[0]
             return send_json(self, 200, get_delay_features(train) if train else {"error": "train query parameter required"})
 
-        # AFTER — role-aware filtering
         if path == "/rag-search":
             user_query = query.get("query", [""])[0]
             language = query.get("language", ["auto"])[0]
             document_type = query.get("document_type", [None])[0]
             top_k = int(query.get("top_k", ["3"])[0])
-            # Decode the token to get the caller's role; default to "customer" if no token
+            # ── ROLE-BASED RAG FILTERING ──────────────────────────────────
+            # Decode the Bearer token to get the caller's role.
+            # If no token is present (unauthenticated), default to "customer"
+            # so the most restrictive filter always applies.
             token_payload = decode_token(_bearer(self))
             user_role = token_payload.get("role", "customer") if token_payload else "customer"
-            return send_json(self, 200, search_rag(user_query, language=language, top_k=top_k, document_type=document_type, user_role=user_role))
-
+            # ─────────────────────────────────────────────────────────────
+            return send_json(self, 200, search_rag(
+                user_query,
+                language=language,
+                top_k=top_k,
+                document_type=document_type,
+                user_role=user_role,
+            ))
 
         if path == "/eval/run":
             return send_json(self, 200, run_eval_suite())
+
+        if path == "/eval/rag":
+            # Admin only – RAG evaluation exposes internal doc IDs
+            token_payload, err = require_role(_bearer(self), "admin")
+            if err:
+                return send_json(self, 403, {"error": err})
+            top_k = int(query.get("top_k", ["5"])[0])
+            return send_json(self, 200, run_rag_eval_suite(top_k=top_k))
 
         # --- occupancy (employee/admin only) --------------------------------
         if path.startswith("/occupancy/"):
@@ -190,12 +209,48 @@ class DeBianHandler(BaseHTTPRequestHandler):
                 return send_json(self, 404, {"error": "User not found."})
             return send_json(self, 200, profile)
 
+        # --- Real-time departure board ----------------------------------------
+        if path == "/board/departures":
+            station = query.get("station", ["Frankfurt(Main)Hbf"])[0]
+            duration = int(query.get("duration", ["120"])[0])
+            locale = query.get("locale", ["en"])[0]
+            return send_json(self, 200, get_departures(station, duration, locale))
+
+        # --- Real-time arrival board ------------------------------------------
+        if path == "/board/arrivals":
+            station = query.get("station", ["Frankfurt(Main)Hbf"])[0]
+            duration = int(query.get("duration", ["120"])[0])
+            locale = query.get("locale", ["en"])[0]
+            return send_json(self, 200, get_arrivals(station, duration, locale))
+
+        # --- Journey search --------------------------------------------------
+        if path == "/journey/search":
+            origin = query.get("origin", [""])[0]
+            destination = query.get("destination", [""])[0]
+            dt = query.get("datetime", [None])[0]
+            num = int(query.get("num", ["3"])[0])
+            if not origin or not destination:
+                return send_json(self, 400, {"error": "origin and destination query params required"})
+            return send_json(self, 200, search_journeys(origin, destination, dt, num))
+
+        # --- Ticket classes info --------------------------------------------
+        if path == "/ticket/classes":
+            return send_json(self, 200, get_ticket_classes())
+
+        # --- Ticket recommendation ------------------------------------------
+        if path == "/ticket/recommend":
+            days = int(query.get("days_in_advance", ["7"])[0])
+            flexible = query.get("flexible", ["false"])[0].lower() == "true"
+            freq = query.get("frequency", ["once"])[0]
+            cls = int(query.get("class", ["2"])[0])
+            bc = query.get("bahncard", ["false"])[0].lower() == "true"
+            group = query.get("group", ["false"])[0].lower() == "true"
+            return send_json(self, 200, recommend_ticket(days, flexible, freq, cls, bc, group))
+
         if path == "/stream":
             message = query.get("message", ["Hello"])[0]
             language = query.get("language", ["en"])[0]
-            stream_token_payload = decode_token(_bearer(self))
-            stream_role = stream_token_payload.get("role", "customer") if stream_token_payload else "customer"
-            response = AGENT.respond(message, {"language": language}, user_role=stream_role).get("response", "")
+            response = AGENT.respond(message, {"language": language}).get("response", "")
 
             self.send_response(200)
             self.send_header("Content-Type", "text/event-stream; charset=utf-8")
@@ -270,18 +325,12 @@ class DeBianHandler(BaseHTTPRequestHandler):
         if path == "/auth/register":
             try:
                 body = self.read_json()
-                requested_role = body.get("role", "customer")
-                # Only admins may create employee or admin accounts.
-                if requested_role in {"employee", "admin"}:
-                    reg_token_payload, reg_err = require_role(_bearer(self), "admin")
-                    if reg_err:
-                        return send_json(self, 403, {"error": f"Only admins may assign role '{requested_role}'. {reg_err}"})
                 result = register(
                     username=body.get("username", ""),
                     password=body.get("password", ""),
                     full_name=body.get("full_name", ""),
                     email=body.get("email", ""),
-                    role=requested_role,
+                    role=body.get("role", "customer"),
                 )
                 return send_json(self, 200 if result["success"] else 400, result)
             except Exception as e:
@@ -306,9 +355,7 @@ class DeBianHandler(BaseHTTPRequestHandler):
                 message = str(payload.get("message", "")).strip()
                 if not message:
                     return send_json(self, 400, {"error": "message is required"})
-                chat_token_payload = decode_token(_bearer(self))
-                chat_role = chat_token_payload.get("role", "customer") if chat_token_payload else "customer"
-                result = AGENT.respond(message, payload, history=payload.get("history", []), user_role=chat_role)
+                result = AGENT.respond(message, payload, history=payload.get("history", []))
                 if payload.get("session_id"):
                     save_session(payload["session_id"], {"last_message": message, "last_response": result})
                 return send_json(self, 200, result)
@@ -320,6 +367,19 @@ class DeBianHandler(BaseHTTPRequestHandler):
 
             if path == "/route":
                 return send_json(self, 200, get_alternative_routes(payload.get("origin", ""), payload.get("destination", "")))
+
+            if path == "/journey/book":
+                result = build_booking_summary(payload, payload.get("language", "en"))
+                return send_json(self, 200, result)
+
+            if path == "/journey/book-step":
+                step = payload.get("step", "origin")
+                lang = payload.get("language", "en")
+                return send_json(self, 200, {
+                    "step": step,
+                    "prompt": next_booking_prompt(step, lang),
+                    "all_steps": BOOKING_STEPS,
+                })
 
             if path == "/human-assistance":
                 return send_json(self, 200, request_human_handoff(
@@ -371,9 +431,36 @@ DOCS_HTML = """
   <div class="card"><h2>GET /etl/run</h2><p>Run Databricks-style Bronze/Silver/Gold ETL.</p></div>
   <div class="card"><h2>GET /features</h2><p>Read Gold feature table.</p></div>
   <div class="card"><h2>GET /feature?train=ICE%20572</h2><p>Read one train's feature row.</p></div>
-  <div class="card"><h2>GET /rag-search?query=refund%20delay&language=en</h2><p>Search Pinecone if configured, otherwise local vector DB fallback.</p></div>
+  <div class="card"><h2>GET /rag-search?query=refund%20delay&language=en</h2><p>Search Pinecone if configured, otherwise local vector DB fallback. Role-filtered: pass Bearer token to see employee/admin documents.</p></div>
   <div class="card"><h2>GET /eval/run</h2><p>Evaluation service sample suite.</p></div>
+  <div class="card"><h2>GET /eval/rag</h2><p>RAG evaluation suite: relevance, role access control, coverage. Admin token required. Optional: ?top_k=5</p></div>
   <div class="card"><h2>GET /stream?message=I%20need%20compensation&language=en</h2><p>Streaming response.</p></div>
+  <div class="card"><h2>GET /board/departures?station=Frankfurt(Main)Hbf&duration=90&locale=en</h2><p>Real-time departure board using bahnhof.de public API. Falls back to mock data when unavailable.</p></div>
+  <div class="card"><h2>GET /board/arrivals?station=Berlin%20Hbf&duration=90</h2><p>Real-time arrival board.</p></div>
+  <div class="card"><h2>GET /journey/search?origin=Frankfurt(Main)Hbf&destination=Berlin%20Hbf&num=3</h2><p>Live journey connections via DB Hafas / Navigator. Returns connections with departure times, trains, and prices. Falls back to mock + bahn.de deep link.</p></div>
+  <div class="card"><h2>GET /ticket/classes</h2><p>DB ticket types, Bahncard options, and booking channel overview.</p></div>
+  <div class="card"><h2>GET /ticket/recommend?days_in_advance=7&flexible=true&frequency=once</h2><p>Recommend best ticket type. Params: days_in_advance, flexible (bool), frequency (once/occasional/regular), class (1/2), bahncard (bool), group (bool).</p></div>
+  <div class="card">
+    <h2>POST /journey/book</h2>
+    <pre>{
+  "origin": "Frankfurt(Main)Hbf",
+  "destination": "Berlin Hbf",
+  "travel_date": "27.05.2026",
+  "travel_time": "09:30",
+  "passengers": 1,
+  "travel_class": 2,
+  "flexibility": "yes",
+  "bahncard": "none",
+  "bike": "no",
+  "language": "en"
+}</pre>
+    <p>Returns booking summary, ticket recommendation, and pre-filled bahn.de booking URL.</p>
+  </div>
+  <div class="card">
+    <h2>POST /journey/book-step</h2>
+    <pre>{ "step": "origin", "language": "en" }</pre>
+    <p>Returns next guided booking prompt for the given step. Steps: origin → destination → travel_date → travel_time → passengers → travel_class → flexibility → bahncard → bike → confirm.</p>
+  </div>
 
   <div class="card">
     <h2>POST /claim</h2>
@@ -490,7 +577,6 @@ def _handle_upload_document(handler: BaseHTTPRequestHandler) -> None:
             {"type": "input_text", "text": prompt},
         ]
     elif is_pdf:
-        # Responses API supports file input for PDFs
         user_content = [
             {
                 "type": "input_file",
@@ -500,7 +586,6 @@ def _handle_upload_document(handler: BaseHTTPRequestHandler) -> None:
             {"type": "input_text", "text": prompt},
         ]
     else:
-        # Plain text / other: send raw decoded text
         try:
             text_content = file_data.decode("utf-8", errors="replace")
         except Exception:
@@ -510,7 +595,6 @@ def _handle_upload_document(handler: BaseHTTPRequestHandler) -> None:
         ]
 
     if not api_key:
-        # Fallback: no LLM – return structured acknowledgement
         return send_json(handler, 200, {
             "analysis": (
                 f"I received your file '{file_name}' ({file_mime}, {len(file_data):,} bytes). "
@@ -546,7 +630,6 @@ def _handle_upload_document(handler: BaseHTTPRequestHandler) -> None:
         with _ur.urlopen(req, timeout=45) as resp:
             data = json.loads(resp.read().decode("utf-8"))
 
-        # extract text from Responses API shape
         texts = []
         for item in data.get("output", []):
             for content in item.get("content", []):

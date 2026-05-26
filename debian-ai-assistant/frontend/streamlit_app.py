@@ -975,10 +975,12 @@ function addOptions(){
   wrap.id="chat-options";
   wrap.style.cssText="display:flex;gap:8px;flex-wrap:wrap;padding:4px 0 8px;";
   const opts=[
-    {label:"🎫 Book a ticket", fn:"book()"},
-    {label:"💶 Claim compensation", fn:"startClaim()"},
+    {label:"🎫 Book ticket", fn:"book()"},
+    {label:"🚉 Departures", fn:"showBoard('departures')"},
+    {label:"🚃 Arrivals", fn:"showBoard('arrivals')"},
+    {label:"💶 Compensation", fn:"startClaim()"},
     {label:"🚆 Check delay", fn:"startDelay()"},
-    {label:"☎️ Human assistance", fn:"human()"},
+    {label:"☎️ Human help", fn:"human()"},
   ];
   opts.forEach(o=>{
     const b=document.createElement("button");
@@ -1086,7 +1088,237 @@ async function runETL(){
   }
 }
 
-function book(){ step=null; add("bot",g("book")); }
+// ── BOOKING WIZARD ──────────────────────────────────────────────────
+let booking = {};
+let bookingStep = null;
+// Steps: journey details → (IBAN auto-retrieved from DB, not typed by user) → done
+const BOOKING_STEPS = ["origin","destination","travel_date","travel_time","passengers","travel_class","flexibility","bahncard","bike"];
+const BOOKING_PROMPTS = {
+  en: {
+    origin:       "🗺️ Where are you travelling FROM?\nExample: Frankfurt(Main)Hbf",
+    destination:  "🗺️ Where are you travelling TO?\nExample: Berlin Hbf",
+    travel_date:  "📅 What date do you want to travel?\nExample: 27.05.2026  or  tomorrow",
+    travel_time:  "🕐 What time do you want to depart? (HH:MM)\nExample: 09:30",
+    passengers:   "👥 How many passengers? (1–5)\nExample: 1",
+    travel_class: "🎫 Which class?\n1 = First class   |   2 = Second class (default)",
+    flexibility:  "🔄 Do you need a flexible ticket (changeable/refundable)?\nType: yes  or  no",
+    bahncard:     "💳 Do you have a Bahncard?\nType: none  25  50  or  100",
+    bike:         "🚴 Do you want to bring a bicycle?\nType: yes  or  no",
+  },
+  de: {
+    origin:       "🗺️ Wo reisen Sie AB?\nBeispiel: Frankfurt(Main)Hbf",
+    destination:  "🗺️ Wohin reisen Sie?\nBeispiel: Berlin Hbf",
+    travel_date:  "📅 An welchem Datum?\nBeispiel: 27.05.2026  oder  morgen",
+    travel_time:  "🕐 Um wie viel Uhr abfahren? (HH:MM)\nBeispiel: 09:30",
+    passengers:   "👥 Wie viele Reisende? (1–5)\nBeispiel: 1",
+    travel_class: "🎫 Welche Klasse?\n1 = Erste Klasse   |   2 = Zweite Klasse (Standard)",
+    flexibility:  "🔄 Benötigen Sie ein flexibles Ticket?\nEingabe: ja  oder  nein",
+    bahncard:     "💳 Haben Sie eine Bahncard?\nEingabe: keine  25  50  oder  100",
+    bike:         "🚴 Fahrrad mitnehmen?\nEingabe: ja  oder  nein",
+  },
+};
+
+function bookingPrompt(step){ return (BOOKING_PROMPTS[lang()]||BOOKING_PROMPTS.en)[step]||"Please answer the question."; }
+
+// Mask an IBAN: show first 4 chars (country+check) + stars + last 4 digits
+// e.g. DE89370400440532013000 → DE89 ************** 3000
+function maskIBAN(raw){
+  const clean = raw.replace(/\s/g,"").toUpperCase();
+  if(clean.length < 8) return "*".repeat(clean.length);
+  const prefix = clean.slice(0,4);
+  const last4  = clean.slice(-4);
+  const stars  = "*".repeat(clean.length - 8);
+  return `${prefix} ${stars} ${last4}`;
+}
+
+// Returns true if input looks like a valid IBAN (2 letters + 13–32 digits/chars)
+function looksLikeIBAN(s){
+  return /^[A-Za-z]{2}[\dA-Za-z\s]{12,34}$/.test(s.trim());
+}
+
+function book(){
+  booking = {};
+  bookingStep = "origin";
+  step = null;
+  add("bot", "🎫 Let\'s book your ticket! I\'ll ask a few quick questions.\n\n" + bookingPrompt("origin"));
+}
+
+function handleBookingInput(text){
+  const t = text.trim();
+  const tl = t.toLowerCase();
+
+
+  // ── IBAN confirm step: user confirms the auto-retrieved IBAN ──────────────
+  if(bookingStep === "iban_confirm"){
+    if(tl === "no" || tl === "nein" || tl === "n"){
+      // User declined — proceed without IBAN
+      booking.iban = "";
+      booking.iban_masked = "";
+      finishBooking();
+      return true;
+    }
+    // yes / ja / any affirmative → complete booking
+    finishBooking();
+    return true;
+  }
+
+  // ── All other steps ───────────────────────────────────────────────
+  booking[bookingStep] = t;
+  const idx = BOOKING_STEPS.indexOf(bookingStep);
+  const next = BOOKING_STEPS[idx+1];
+  if(!next){
+    // Journey steps complete — auto-retrieve IBAN from database (never ask user to type it)
+    retrieveIBANAndConfirm();
+    return true;
+  }
+  bookingStep = next;
+  add("bot", bookingPrompt(next));
+  return true;
+}
+
+// ── Auto-retrieve IBAN from the user profile (database) and show for confirmation ──
+function retrieveIBANAndConfirm(){
+  if(_user && _user.masked_iban){
+    // IBAN is on file — retrieved from the user record, never entered by the user
+    const maskedFull = _user.masked_iban;
+    const last4 = maskedFull.replace(/\s/g,"").slice(-4);
+    booking.iban_masked = maskedFull;
+    booking.iban = maskedFull;
+    bookingStep = "iban_confirm";
+    const confirmMsg = lang()==="de"
+      ? `🏦 Ihre IBAN wurde aus Ihrem Konto abgerufen.\n\n💳 IBAN gespeichert: **** **** **** ${last4}\n   (Nur die letzten 4 Stellen werden angezeigt — Sie müssen keine IBAN eingeben)\n\nMöchten Sie mit dieser IBAN fortfahren?\nEingabe: ja zum Bestätigen  |  nein zum Überspringen`
+      : `🏦 Payment IBAN retrieved from your account on file.\n\n💳 IBAN on file: **** **** **** ${last4}\n   (Only the last 4 digits are shown — you do not need to enter your IBAN)\n\nWould you like to use this IBAN for payment?\nType: yes to confirm  |  no to skip`;
+    add("bot", confirmMsg);
+  } else {
+    // No IBAN on file — inform the user and complete booking without one
+    booking.iban = "";
+    booking.iban_masked = "";
+    const noIbanMsg = lang()==="de"
+      ? "ℹ️ Kein IBAN in Ihrem Konto hinterlegt. Bitte zahlen Sie direkt auf bahn.de."
+      : "ℹ️ No IBAN found in your account. You can complete payment directly on bahn.de.";
+    add("bot", noIbanMsg);
+    finishBooking();
+  }
+}
+
+
+async function finishBooking(){
+  bookingStep = null;
+  const payload = {...booking, language: lang()};
+  const r = await post("/journey/book", payload);
+
+  let msg = "";
+  if(r._offline || r.error){
+    const dt = booking.travel_date||"tomorrow";
+    const t  = booking.travel_time||"09:00";
+    const origin = encodeURIComponent(booking.origin||"");
+    const dest   = encodeURIComponent(booking.destination||"");
+    const url = `https://www.bahn.de/buchung/fahrplan/suche?S=${origin}&Z=${dest}&date=${dt}&time=${t}&start=1`;
+    msg = "✅ Booking details collected!\n\n🔗 Click to complete your booking on bahn.de:\n"+url;
+  } else {
+    msg = "✅ Your ticket details:\n\n"+r.summary+"\n\n";
+    if(r.ticket_recommendation){
+      const rec = r.ticket_recommendation;
+      msg += "💡 Recommended: "+rec.recommended_ticket+"\n"+rec.reason+"\n\n";
+      if(rec.booking_tips&&rec.booking_tips.length){
+        msg += "Tips:\n"+rec.booking_tips.map(tip=>"• "+tip).join("\n")+"\n\n";
+      }
+    }
+    // IBAN confirmation block
+    if(booking.iban_masked){
+      const last4 = (booking.iban||"").slice(-4);
+      msg += lang()==="de"
+        ? `💳 Zahlung: IBAN ****${last4} (${booking.iban_masked})\n`
+        : `💳 Payment: IBAN ****${last4} (${booking.iban_masked})\n`;
+      msg += lang()==="de"
+        ? "🔒 Ihre IBAN ist gesichert — nur die letzten 4 Stellen werden gespeichert.\n\n"
+        : "🔒 Your IBAN is secured — only the last 4 digits are retained.\n\n";
+    } else {
+      msg += lang()==="de"
+        ? "💳 Zahlung: Keine IBAN gespeichert — bitte direkt auf bahn.de bezahlen.\n\n"
+        : "💳 Payment: No IBAN stored — please complete payment directly on bahn.de.\n\n";
+    }
+    msg += "🔗 Complete booking on bahn.de:\n"+r.booking_url;
+  }
+
+  add("bot", msg);
+  // Trigger live journey search to show connection options
+  searchJourneyFor(booking.origin, booking.destination, booking.travel_date, booking.travel_time);
+  addOptions();
+}
+
+// ── LIVE DEPARTURE BOARD ─────────────────────────────────────────────
+let boardStep = null;
+let boardStation = "";
+let boardType = "departures";
+
+function showBoard(type="departures"){
+  boardType = type;
+  boardStep = "station";
+  step = null;
+  const label = type==="departures" ? "🚆 Live Departure Board" : "🚃 Live Arrival Board";
+  add("bot", label+"\n\nWhich station do you want to check?\nExample: Frankfurt(Main)Hbf  |  Berlin Hbf  |  München Hbf");
+}
+
+async function handleBoardInput(text){
+  if(boardStep === "station"){
+    boardStation = text.trim();
+    boardStep = null;
+    await fetchBoard(boardStation, boardType);
+    return true;
+  }
+  return false;
+}
+
+async function fetchBoard(station, type){
+  add("bot", "⏳ Fetching live "+type+" for "+station+"…");
+  const d = await get("/board/"+type+"?station="+encodeURIComponent(station)+"&duration=90&locale="+lang());
+  if(d._offline||d.error){
+    add("bot","⚠️ Could not reach the live board API. Try again or check bahn.de for live information.");
+    addOptions(); return;
+  }
+  const entries = d.entries||[];
+  if(!entries.length){ add("bot","No "+type+" found for "+station+" in the next 90 minutes."); addOptions(); return; }
+  const src = d.source==="bahnhof.de" ? "🟢 Live" : "🟡 Demo";
+  let msg = src+" "+type.charAt(0).toUpperCase()+type.slice(1)+" — "+station+"\n";
+  if(d.generated_at) msg += "Updated: "+d.generated_at.replace("T"," ")+"\n";
+  msg += "─────────────────────────────\n";
+  entries.slice(0,10).forEach(e=>{
+    const time = e.actual_time||e.scheduled_time||"";
+    const delay = e.delay_minutes>0 ? " (+"+e.delay_minutes+"min)":"";
+    const cancelled = e.cancelled ? " ❌ CANCELLED":"";
+    const pf = e.platform_actual&&e.platform_actual!=="?" ? " Gleis "+e.platform_actual:"";
+    const dir = e.direction||e.from||"";
+    const via = e.via&&e.via.length ? " via "+e.via.slice(0,2).join(", "):"";
+    msg += `${time.slice(11,16)||time}${delay}${cancelled}  ${e.train}  → ${dir}${via}${pf}\n`;
+  });
+  if(d.source!=="bahnhof.de") msg+="\n(Demo data — configure DB credentials for live boards)";
+  add("bot", msg);
+  addOptions();
+}
+
+// ── JOURNEY SEARCH ───────────────────────────────────────────────────
+async function searchJourneyFor(origin, destination, date, time){
+  if(!origin||!destination) return;
+  const dt = date&&time ? date+"T"+time : "";
+  const d = await get("/journey/search?origin="+encodeURIComponent(origin)+"&destination="+encodeURIComponent(destination)+(dt?"&datetime="+encodeURIComponent(dt):"")+"&num=3");
+  if(d._offline||d.error||!d.connections) return;
+  const conns = d.connections||[];
+  if(!conns.length) return;
+  let msg = "🔍 Available connections "+origin+" → "+destination+":\n";
+  msg += "─────────────────────────────\n";
+  conns.forEach((c,i)=>{
+    const dep = (c.departure||"").slice(11,16)||(c.departure||"");
+    const arr = (c.arrival||"").slice(11,16)||(c.arrival||"");
+    const trains = c.trains&&c.trains.length?c.trains.join(", "):c.products&&c.products.join(", ")||"Train";
+    const price = c.price_eur ? "  €"+c.price_eur.toFixed(2):"";
+    const changes = c.changes!==undefined ? (c.changes===0?" Direct":" "+c.changes+" change(s)"):"";
+    msg += (i+1)+". "+dep+" → "+arr+"  "+trains+changes+price+"\n";
+  });
+  if(d.booking_url) msg += "\n🔗 Book: "+d.booking_url;
+  add("bot", msg);
+}
+
 function startClaim(){ step="train_number"; claim={language:lang(),claim_form:true}; add("bot",g("claim_start")); }
 function startDelay(){ step="delay_train"; add("bot",g("delay_start")); }
 async function human(){
@@ -1102,9 +1334,14 @@ async function human(){
 async function send(){
   if(_pendingFile){ const q=document.getElementById("input").value.trim(); if(q) add("user","📎 "+_pendingFile.name+"\n"+q); else add("user","📎 "+_pendingFile.name); document.getElementById("input").value=""; await uploadFile(_pendingFile,q); return; }
   const t=document.getElementById("input").value.trim(); if(!t) return;
-  // Mask IBAN in chat display when user enters account number during claim
-  const displayText = step==="account" ? "**** **** **** "+t.split(" ").join("").slice(-4) : t;
+  // Mask IBAN in chat display for claim account step (booking wizard no longer accepts IBAN input)
+  let displayText = t;
+  if(step === "account") displayText = "**** **** **** "+t.split(" ").join("").slice(-4);
   add("user",displayText); document.getElementById("input").value="";
+  // Route to booking wizard
+  if(bookingStep){ handleBookingInput(t); return; }
+  // Route to live board lookup
+  if(boardStep){ await handleBoardInput(t); return; }
   if(step){ await guided(t); return; }
   _history.push({role:"user",content:t});
   let reply, ragSources = [];

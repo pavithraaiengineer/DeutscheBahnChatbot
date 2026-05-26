@@ -1,31 +1,31 @@
 """
-OpenAI LLM client using Python standard library only.
+LLM client — powered by LangChain 1.x.
 
-The app still works without OPENAI_API_KEY.
-If OPENAI_API_KEY is missing or the API call fails, DeBian uses the fallback response.
+Uses:
+  - ChatOpenAI              (LLM)
+  - ChatPromptTemplate      (prompt assembly)
+  - LCEL chain              (prompt | llm | parser)
+  - HumanMessage/AIMessage  (conversation history, no memory class needed)
 """
 
 from __future__ import annotations
 
-import json
-import urllib.error
-import urllib.request
+from langchain_openai import ChatOpenAI
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
+from langchain_core.output_parsers import StrOutputParser
 
 from app.config import get_env
 from app.llm.prompt_builder import SYSTEM_PROMPT, build_llm_input
 from app.tools.pii_masking_tool import mask_pii_text
 
 
-OPENAI_CHAT_URL = "https://api.openai.com/v1/chat/completions"
-OPENAI_RESPONSES_URL = OPENAI_CHAT_URL  # alias for compatibility
-
-
 def llm_status() -> dict:
     return {
-        "provider": "openai",
+        "provider": "openai_via_langchain",
         "configured": bool(get_env("OPENAI_API_KEY")),
         "model": get_env("OPENAI_MODEL", "gpt-4.1-mini"),
-        "mode": "openai_responses_api" if get_env("OPENAI_API_KEY") else "local_fallback",
+        "mode": "langchain_chat" if get_env("OPENAI_API_KEY") else "local_fallback",
     }
 
 
@@ -38,10 +38,7 @@ def generate_llm_response(
     fallback_response: str,
     history: list | None = None,
 ) -> dict:
-    api_key = get_env("OPENAI_API_KEY", "")
-    model = get_env("OPENAI_MODEL", "gpt-4.1-mini")
-
-    if not api_key:
+    if not get_env("OPENAI_API_KEY", ""):
         return {
             "text": fallback_response,
             "used_llm": False,
@@ -58,51 +55,38 @@ def generate_llm_response(
         fallback_response=fallback_response,
     )
 
-    # Build messages with conversation history for memory
-    safe_history = [
-        {"role": h["role"], "content": mask_pii_text(str(h["content"]))}
-        for h in (history or [])[-8:]
-        if h.get("role") in {"user", "assistant"} and h.get("content")
-    ]
-    messages = [{"role": "system", "content": SYSTEM_PROMPT}] + safe_history + [{"role": "user", "content": user_input}]
+    # Build history as LangChain message objects (no memory class needed in 1.x)
+    chat_history = []
+    for turn in (history or [])[-8:]:
+        role = turn.get("role", "")
+        content = mask_pii_text(str(turn.get("content", "")))
+        if role == "user":
+            chat_history.append(HumanMessage(content=content))
+        elif role == "assistant":
+            chat_history.append(AIMessage(content=content))
 
-    payload = {
-        "model": model,
-        "messages": messages,
-        "temperature": 0.2,
-        "max_tokens": 450,
-    }
-
-    request = urllib.request.Request(
-        OPENAI_CHAT_URL,
-        data=json.dumps(payload).encode("utf-8"),
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        },
-        method="POST",
+    llm = ChatOpenAI(
+        model=get_env("OPENAI_MODEL", "gpt-4.1-mini"),
+        temperature=0.2,
+        max_tokens=450,
+        api_key=get_env("OPENAI_API_KEY"),
     )
 
-    try:
-        with urllib.request.urlopen(request, timeout=30) as response:
-            data = json.loads(response.read().decode("utf-8"))
+    prompt = ChatPromptTemplate.from_messages([
+        SystemMessage(content=SYSTEM_PROMPT),
+        MessagesPlaceholder(variable_name="history"),
+        ("human", "{user_input}"),
+    ])
 
-        text = _extract_output_text(data) or fallback_response
+    chain = prompt | llm | StrOutputParser()
+
+    try:
+        text = chain.invoke({"user_input": user_input, "history": chat_history})
         return {
             "text": mask_pii_text(text),
             "used_llm": True,
             "llm_status": llm_status(),
         }
-
-    except urllib.error.HTTPError as error:
-        body = error.read().decode("utf-8", errors="ignore")
-        return {
-            "text": fallback_response,
-            "used_llm": False,
-            "llm_status": llm_status(),
-            "reason": f"OpenAI HTTP error {error.code}: {body[:300]}",
-        }
-
     except Exception as error:
         return {
             "text": fallback_response,
@@ -110,24 +94,3 @@ def generate_llm_response(
             "llm_status": llm_status(),
             "reason": str(error),
         }
-
-
-def _extract_output_text(data: dict) -> str:
-    # Standard Chat Completions API response format
-    choices = data.get("choices", [])
-    if choices:
-        msg = choices[0].get("message", {})
-        if isinstance(msg.get("content"), str):
-            return msg["content"]
-
-    # Fallback: Responses API format
-    if isinstance(data.get("output_text"), str):
-        return data["output_text"]
-
-    texts = []
-    for item in data.get("output", []):
-        for block in item.get("content", []):
-            if block.get("type") in {"output_text", "text"} and isinstance(block.get("text"), str):
-                texts.append(block["text"])
-
-    return "\n".join(texts).strip()

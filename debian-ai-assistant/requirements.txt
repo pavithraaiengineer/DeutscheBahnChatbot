@@ -1,10 +1,20 @@
-# Local backend runs with Python standard library only:
-#   python -m app.main
-#
-# Optional UI:
-#   pip install streamlit
-#
-# Optional production integrations:
-#   pip install pinecone databricks-sql-connector google-cloud-bigquery google-cloud-storage
-#
-# This file is intentionally dependency-light to avoid Windows/Python version conflicts.
+# LangChain core
+langchain>=0.3
+langchain-core>=0.3
+langchain-openai>=0.2
+langchain-pinecone>=0.2
+
+# Vector store / embeddings
+pinecone-client>=3.0
+
+# Web framework
+fastapi
+uvicorn[standard]
+
+# Optional UI
+streamlit
+
+# Existing integrations
+databricks-sql-connector
+google-cloud-bigquery
+google-cloud-storage
