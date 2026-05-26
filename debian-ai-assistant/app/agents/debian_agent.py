@@ -23,6 +23,7 @@ from app.llm.openai_client import generate_llm_response
 from app.rag.retriever import retrieve_context
 from app.rag.query_optimizer import detect_language
 from app.security.governance import write_analytics_event, write_audit_event, sanitize_payload
+from app.security.guardrails import InputGuardrail, OutputGuardrail
 from app.tools.compensation_tool import submit_compensation_claim
 from app.tools.delay_tool import get_delay_status
 from app.tools.human_handoff_tool import request_human_handoff
@@ -282,6 +283,18 @@ class DeBianAgent:
         language = payload.get("language") or detect_language(message)
         intent = self.classify_intent(message, payload)
 
+        # ── INPUT GUARDRAIL ───────────────────────────────────────────────────
+        session_id = payload.get("session_id", "anonymous")
+        input_check = InputGuardrail.check(
+            message    = message,
+            user_role  = user_role,
+            session_id = session_id,
+            language   = language,
+        )
+        if input_check.blocked:
+            return input_check.error_response(language)
+        # ─────────────────────────────────────────────────────────────────────
+
         rag_context = retrieve_context(mask_pii_text(message), language=language, user_role=user_role)
 
         tool_result = None
@@ -319,16 +332,28 @@ class DeBianAgent:
             history=history or [],
         )
 
+        # ── OUTPUT GUARDRAIL ──────────────────────────────────────────────────
+        raw_llm_text = llm_result["text"]
+        output_check = OutputGuardrail.check(
+            llm_text   = raw_llm_text,
+            user_role  = user_role,
+            language   = language,
+            session_id = session_id,
+        )
+        safe_response_text = mask_pii_text(output_check.safe_text)
+        # ─────────────────────────────────────────────────────────────────────
+
         response = {
             "assistant":     "DeBian",
             "language":      language,
             "intent":        intent,
             "selected_tool": selected_tool,
-            "response":      mask_pii_text(llm_result["text"]),
+            "response":      safe_response_text,
             "used_llm":      llm_result["used_llm"],
             "llm_status":    llm_result["llm_status"],
             "tool_result":   sanitize_payload(tool_result or {}),
             "rag_context":   rag_context,
+            "guardrail_output_redacted": output_check.redacted,
             "flow": [
                 "User input received by text, voice, or image",
                 "Backend receives request",
