@@ -277,12 +277,12 @@ class DeBianAgent:
             return "voice_processing"
         return "general"
 
-    def respond(self, message: str, payload: dict | None = None, history: list | None = None) -> dict:
+    def respond(self, message: str, payload: dict | None = None, history: list | None = None, user_role: str = "customer") -> dict:
         payload = payload or {}
         language = payload.get("language") or detect_language(message)
         intent = self.classify_intent(message, payload)
 
-        rag_context = retrieve_context(mask_pii_text(message), language=language)
+        rag_context = retrieve_context(mask_pii_text(message), language=language, user_role=user_role)
 
         tool_result = None
         selected_tool = None

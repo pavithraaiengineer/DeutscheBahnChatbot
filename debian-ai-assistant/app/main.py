@@ -13,6 +13,7 @@ Production can replace this with FastAPI while preserving the same modules.
 
 from __future__ import annotations
 
+from importlib.resources import path
 import json
 import os
 import time
@@ -149,12 +150,17 @@ class DeBianHandler(BaseHTTPRequestHandler):
             train = query.get("train", [""])[0]
             return send_json(self, 200, get_delay_features(train) if train else {"error": "train query parameter required"})
 
+        # AFTER — role-aware filtering
         if path == "/rag-search":
             user_query = query.get("query", [""])[0]
             language = query.get("language", ["auto"])[0]
             document_type = query.get("document_type", [None])[0]
             top_k = int(query.get("top_k", ["3"])[0])
-            return send_json(self, 200, search_rag(user_query, language=language, top_k=top_k, document_type=document_type))
+            # Decode the token to get the caller's role; default to "customer" if no token
+            token_payload = decode_token(_bearer(self))
+            user_role = token_payload.get("role", "customer") if token_payload else "customer"
+            return send_json(self, 200, search_rag(user_query, language=language, top_k=top_k, document_type=document_type, user_role=user_role))
+
 
         if path == "/eval/run":
             return send_json(self, 200, run_eval_suite())
@@ -187,7 +193,9 @@ class DeBianHandler(BaseHTTPRequestHandler):
         if path == "/stream":
             message = query.get("message", ["Hello"])[0]
             language = query.get("language", ["en"])[0]
-            response = AGENT.respond(message, {"language": language}).get("response", "")
+            stream_token_payload = decode_token(_bearer(self))
+            stream_role = stream_token_payload.get("role", "customer") if stream_token_payload else "customer"
+            response = AGENT.respond(message, {"language": language}, user_role=stream_role).get("response", "")
 
             self.send_response(200)
             self.send_header("Content-Type", "text/event-stream; charset=utf-8")
@@ -262,12 +270,18 @@ class DeBianHandler(BaseHTTPRequestHandler):
         if path == "/auth/register":
             try:
                 body = self.read_json()
+                requested_role = body.get("role", "customer")
+                # Only admins may create employee or admin accounts.
+                if requested_role in {"employee", "admin"}:
+                    reg_token_payload, reg_err = require_role(_bearer(self), "admin")
+                    if reg_err:
+                        return send_json(self, 403, {"error": f"Only admins may assign role '{requested_role}'. {reg_err}"})
                 result = register(
                     username=body.get("username", ""),
                     password=body.get("password", ""),
                     full_name=body.get("full_name", ""),
                     email=body.get("email", ""),
-                    role=body.get("role", "customer"),
+                    role=requested_role,
                 )
                 return send_json(self, 200 if result["success"] else 400, result)
             except Exception as e:
@@ -292,7 +306,9 @@ class DeBianHandler(BaseHTTPRequestHandler):
                 message = str(payload.get("message", "")).strip()
                 if not message:
                     return send_json(self, 400, {"error": "message is required"})
-                result = AGENT.respond(message, payload, history=payload.get("history", []))
+                chat_token_payload = decode_token(_bearer(self))
+                chat_role = chat_token_payload.get("role", "customer") if chat_token_payload else "customer"
+                result = AGENT.respond(message, payload, history=payload.get("history", []), user_role=chat_role)
                 if payload.get("session_id"):
                     save_session(payload["session_id"], {"last_message": message, "last_response": result})
                 return send_json(self, 200, result)
