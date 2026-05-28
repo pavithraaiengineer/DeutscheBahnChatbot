@@ -249,6 +249,8 @@ FALLBACK_HTML = r"""
   <title>DeBian – Digital Rail Assistant</title>
   <!-- API key injected at serve-time by FallbackHandler -->
   <script>window.OPENAI_API_KEY="__OPENAI_KEY__";</script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;700&display=swap');
     :root{--red:#e30613;--bg:#ffffff;--panel:rgba(227,6,19,.06);--panel2:rgba(227,6,19,.03);--border:rgba(227,6,19,.18);--muted:#999;--green:#16a34a;--amber:#d97706;--blue:#2563eb;--purple:#7c3aed;}
@@ -387,6 +389,20 @@ FALLBACK_HTML = r"""
     .demo-pill:hover{background:rgba(227,6,19,.12);color:var(--red);}
     /* ─── misc ─── */
     .hint{color:var(--muted);font-size:12px;}
+    /* ─── chat chart card ─── */
+    .chat-chart-card{background:#fff;border:1px solid var(--border);border-radius:14px;padding:16px 18px;max-width:82%;margin:8px 0;}
+    .chat-chart-title{font-size:14px;font-weight:700;color:#1a1a1a;margin-bottom:2px;}
+    .chat-chart-sub{font-size:11px;color:var(--muted);margin-bottom:14px;}
+    .pc-conn-row{border-radius:10px;padding:10px 14px;margin-bottom:6px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
+    .pc-conn-best{background:rgba(227,6,19,.04);border:1px solid rgba(227,6,19,.2);}
+    .pc-conn-other{background:#f9f9f9;border:1px solid #eee;}
+    .pc-bar-row{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+    .pc-bar-label{font-size:11px;color:#333;width:130px;flex-shrink:0;}
+    .pc-bar-track{flex:1;height:22px;background:#f0f0f0;border-radius:6px;overflow:hidden;}
+    .pc-bar-fill{height:100%;border-radius:6px;display:flex;align-items:center;padding-left:8px;transition:width .6s ease-out;}
+    .pc-bar-price{font-size:12px;font-weight:700;color:#1a1a1a;min-width:45px;text-align:right;flex-shrink:0;}
+    .pdf-btn{display:inline-flex;align-items:center;gap:6px;margin-top:12px;padding:9px 18px;background:var(--red);border:none;border-radius:10px;color:white;font-size:13px;font-weight:600;cursor:pointer;}
+    .pdf-btn:hover{background:#c0392b;}
     .section-title{font-size:22px;font-family:'Space Grotesk',sans-serif;font-weight:700;margin-bottom:6px;color:#1a1a1a;}
     .section-sub{font-size:13px;color:var(--muted);margin-bottom:20px;}
     @media(max-width:700px){#sidebar{width:60px;}#sidebar .sb-logo p,.sb-logo h1,.nav-btn span,.sb-user-name,.sb-user-role,.sb-user-iban{display:none;}.nav-btn{justify-content:center;padding:12px;}.charts-2col{grid-template-columns:1fr;}}
@@ -436,7 +452,7 @@ FALLBACK_HTML = r"""
       <div class="sb-user-name" id="sb-name">–</div>
       <div class="sb-user-role" id="sb-role">–</div>
       <div class="sb-user-iban" id="sb-iban"></div>
-      <button class="sb-login-btn" onclick="logout()" style="background:rgba(255,255,255,.1);margin-top:8px;">Sign Out</button>
+      <button class="sb-login-btn" onclick="logout()" style="background:#c0392b;margin-top:8px;">Sign Out</button>
     </div>
   </div>
 </div>
@@ -1118,7 +1134,43 @@ const BOOKING_PROMPTS = {
   },
 };
 
-function bookingPrompt(step){ return (BOOKING_PROMPTS[lang()]||BOOKING_PROMPTS.en)[step]||"Please answer the question."; }
+function bookingPrompt(step){
+  const prompts = BOOKING_PROMPTS[lang()]||BOOKING_PROMPTS.en;
+  const p = prompts[step]||"Please answer the question.";
+  if(step === "travel_date") return p.replace(/\d{2}\.\d{2}\.\d{4}/, getTodayStr());
+  return p;
+}
+
+function getTodayStr(){
+  const d=new Date();
+  return d.getDate().toString().padStart(2,"0")+"."+(d.getMonth()+1).toString().padStart(2,"0")+"."+d.getFullYear();
+}
+
+function getTomorrowStr(){
+  const d=new Date(); d.setDate(d.getDate()+1);
+  return d.getDate().toString().padStart(2,"0")+"."+(d.getMonth()+1).toString().padStart(2,"0")+"."+d.getFullYear();
+}
+
+function formatDateForBahn(dateStr){
+  if(!dateStr) return getTodayStr();
+  const tl = dateStr.toLowerCase().trim();
+  if(tl==="tomorrow"||tl==="morgen"||tl==="demain") return getTomorrowStr();
+  if(tl==="today"||tl==="heute"||tl==="aujourd'hui") return getTodayStr();
+  if(/^\d{2}\.\d{2}\.\d{4}$/.test(dateStr)) return dateStr;
+  const parsed = new Date(dateStr);
+  if(!isNaN(parsed.getTime())){
+    return parsed.getDate().toString().padStart(2,"0")+"."+(parsed.getMonth()+1).toString().padStart(2,"0")+"."+parsed.getFullYear();
+  }
+  return getTodayStr();
+}
+
+function addHTML(html){
+  const chat = document.getElementById("chat");
+  const wrapper = document.createElement("div");
+  wrapper.innerHTML = html;
+  chat.appendChild(wrapper);
+  chat.scrollTop = chat.scrollHeight;
+}
 
 // Mask an IBAN: show first 4 chars (country+check) + stars + last 4 digits
 // e.g. DE89370400440532013000 → DE89 ************** 3000
@@ -1207,14 +1259,15 @@ async function finishBooking(){
   const payload = {...booking, language: lang()};
   const r = await post("/journey/book", payload);
 
+  const formattedDate = formatDateForBahn(booking.travel_date);
+  const t  = booking.travel_time||"09:00";
+  const origin = encodeURIComponent(booking.origin||"");
+  const dest   = encodeURIComponent(booking.destination||"");
+  const bahnUrl = `https://www.bahn.de/buchung/fahrplan/suche?S=${origin}&Z=${dest}&date=${encodeURIComponent(formattedDate)}&time=${encodeURIComponent(t)}&start=1`;
+
   let msg = "";
   if(r._offline || r.error){
-    const dt = booking.travel_date||"tomorrow";
-    const t  = booking.travel_time||"09:00";
-    const origin = encodeURIComponent(booking.origin||"");
-    const dest   = encodeURIComponent(booking.destination||"");
-    const url = `https://www.bahn.de/buchung/fahrplan/suche?S=${origin}&Z=${dest}&date=${dt}&time=${t}&start=1`;
-    msg = "✅ Booking details collected!\n\n🔗 Click to complete your booking on bahn.de:\n"+url;
+    msg = "✅ Booking details collected!\n\n🔗 Click to complete your booking on bahn.de:\n"+bahnUrl;
   } else {
     msg = "✅ Your ticket details:\n\n"+r.summary+"\n\n";
     if(r.ticket_recommendation){
@@ -1224,25 +1277,24 @@ async function finishBooking(){
         msg += "Tips:\n"+rec.booking_tips.map(tip=>"• "+tip).join("\n")+"\n\n";
       }
     }
-    // IBAN confirmation block
     if(booking.iban_masked){
       const last4 = (booking.iban||"").slice(-4);
       msg += lang()==="de"
-        ? `💳 Zahlung: IBAN ****${last4} (${booking.iban_masked})\n`
-        : `💳 Payment: IBAN ****${last4} (${booking.iban_masked})\n`;
-      msg += lang()==="de"
-        ? "🔒 Ihre IBAN ist gesichert — nur die letzten 4 Stellen werden gespeichert.\n\n"
-        : "🔒 Your IBAN is secured — only the last 4 digits are retained.\n\n";
+        ? `💳 Zahlung: IBAN ****${last4}\n🔒 Ihre IBAN ist gesichert — nur die letzten 4 Stellen werden gespeichert.\n\n`
+        : `💳 Payment: IBAN ****${last4}\n🔒 Your IBAN is secured — only the last 4 digits are retained.\n\n`;
     } else {
       msg += lang()==="de"
-        ? "💳 Zahlung: Keine IBAN gespeichert — bitte direkt auf bahn.de bezahlen.\n\n"
-        : "💳 Payment: No IBAN stored — please complete payment directly on bahn.de.\n\n";
+        ? "💳 Zahlung: Bitte direkt auf bahn.de bezahlen.\n\n"
+        : "💳 Payment: Please complete payment directly on bahn.de.\n\n";
     }
-    msg += "🔗 Complete booking on bahn.de:\n"+r.booking_url;
+    msg += "🔗 Complete booking on bahn.de:\n"+(r.booking_url||bahnUrl);
   }
 
   add("bot", msg);
-  // Trigger live journey search to show connection options
+  // Generate booking PDF with QR code
+  const bookingRef = "DB-"+Date.now().toString(36).toUpperCase().slice(-8);
+  generateBookingPDF(booking, bookingRef, r.booking_url||bahnUrl);
+  // Show price comparison chart
   searchJourneyFor(booking.origin, booking.destination, booking.travel_date, booking.travel_time);
   addOptions();
 }
@@ -1302,21 +1354,78 @@ async function searchJourneyFor(origin, destination, date, time){
   if(!origin||!destination) return;
   const dt = date&&time ? date+"T"+time : "";
   const d = await get("/journey/search?origin="+encodeURIComponent(origin)+"&destination="+encodeURIComponent(destination)+(dt?"&datetime="+encodeURIComponent(dt):"")+"&num=3");
-  if(d._offline||d.error||!d.connections) return;
-  const conns = d.connections||[];
-  if(!conns.length) return;
-  let msg = "🔍 Available connections "+origin+" → "+destination+":\n";
-  msg += "─────────────────────────────\n";
-  conns.forEach((c,i)=>{
-    const dep = (c.departure||"").slice(11,16)||(c.departure||"");
-    const arr = (c.arrival||"").slice(11,16)||(c.arrival||"");
-    const trains = c.trains&&c.trains.length?c.trains.join(", "):c.products&&c.products.join(", ")||"Train";
-    const price = c.price_eur ? "  €"+c.price_eur.toFixed(2):"";
-    const changes = c.changes!==undefined ? (c.changes===0?" Direct":" "+c.changes+" change(s)"):"";
-    msg += (i+1)+". "+dep+" → "+arr+"  "+trains+changes+price+"\n";
-  });
-  if(d.booking_url) msg += "\n🔗 Book: "+d.booking_url;
-  add("bot", msg);
+  const conns = (!d._offline&&!d.error&&d.connections) ? d.connections : [];
+  renderPriceChart(conns, origin, destination);
+}
+
+function renderPriceChart(conns, origin, destination){
+  // Base sparpreis — use real price from connections or estimate by route
+  let baseSparpreis = 29;
+  if(conns.length && conns[0].price_eur) baseSparpreis = conns[0].price_eur;
+  else {
+    const key = (origin+destination).toUpperCase();
+    if(key.includes("BERLIN")&&(key.includes("FRANKFURT")||key.includes("MÜNCHEN"))) baseSparpreis=29;
+    else if(key.includes("HAMBURG")&&key.includes("MÜNCHEN")) baseSparpreis=39;
+    else if(key.includes("KÖLN")||key.includes("KOELN")) baseSparpreis=25;
+    else baseSparpreis = 32;
+  }
+
+  const tickets = [
+    {label:"Sparpreis Early",   price: baseSparpreis,                     color:"#16a34a", note:"Book 6+ weeks ahead"},
+    {label:"Sparpreis",         price: Math.round(baseSparpreis*1.65),    color:"#e30613", note:"Standard saver"},
+    {label:"BC25 Sparpreis",    price: Math.round(baseSparpreis*1.24),    color:"#2563eb", note:"BahnCard 25 discount"},
+    {label:"BC50 Sparpreis",    price: Math.round(baseSparpreis*0.83),    color:"#7c3aed", note:"BahnCard 50 – best value"},
+    {label:"1st Class Sparpreis",price: Math.round(baseSparpreis*2.1),   color:"#db2777", note:"1st class saver"},
+    {label:"Flexpreis",         price: Math.round(baseSparpreis*3.1),     color:"#d97706", note:"Fully changeable / refundable"},
+  ];
+  const maxP = Math.max(...tickets.map(t=>t.price));
+
+  // Connection rows
+  let connHtml = "";
+  if(conns.length){
+    connHtml = `<div style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#999;margin-bottom:8px;">Available Connections</div>`
+      + conns.map((c,i)=>{
+        const dep=(c.departure||"").slice(11,16)||(c.departure||"");
+        const arr=(c.arrival||"").slice(11,16)||(c.arrival||"");
+        const trains=c.trains&&c.trains.length?c.trains.join(", "):c.products&&c.products.join(", ")||"Train";
+        const changes=c.changes===0?"🟢 Direct":c.changes>0?`🔄 ${c.changes} change(s)`:"";
+        const priceTag=c.price_eur?`<span style="font-weight:700;color:#e30613;margin-left:auto;">€${c.price_eur.toFixed(2)}</span>`:"";
+        const bestBadge=i===0?`<span style="font-size:10px;background:#e30613;color:white;padding:2px 7px;border-radius:10px;font-weight:600;flex-shrink:0;">Best</span>`:"";
+        const cls=i===0?"pc-conn-row pc-conn-best":"pc-conn-row pc-conn-other";
+        return `<div class="${cls}">
+          <div style="font-weight:700;font-size:13px;min-width:110px;">${dep} → ${arr}</div>
+          <div style="font-size:12px;color:#555;flex:1;">${trains}</div>
+          <div style="font-size:12px;color:#888;">${changes}</div>
+          ${priceTag}${bestBadge}
+        </div>`;
+      }).join("")
+      + `<div style="margin-bottom:14px;"></div>`;
+  }
+
+  // Price bars
+  const barsHtml = tickets.map(tk=>{
+    const w=Math.round((tk.price/maxP)*100);
+    return `<div class="pc-bar-row">
+      <div class="pc-bar-label">${tk.label}</div>
+      <div class="pc-bar-track">
+        <div class="pc-bar-fill" style="width:${w}%;background:${tk.color};">
+          <span style="font-size:10px;color:white;font-weight:600;white-space:nowrap;overflow:hidden;">${tk.note}</span>
+        </div>
+      </div>
+      <div class="pc-bar-price">€${tk.price}</div>
+    </div>`;
+  }).join("");
+
+  const cheapest = tickets.reduce((a,b)=>a.price<b.price?a:b);
+
+  addHTML(`<div class="chat-chart-card">
+    <div class="chat-chart-title">🎫 ${origin} → ${destination}</div>
+    <div class="chat-chart-sub">Ticket price comparison · All categories · Cheapest: <strong style="color:#16a34a">${cheapest.label} €${cheapest.price}</strong></div>
+    ${connHtml}
+    <div style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#999;margin-bottom:10px;">Price by Ticket Type</div>
+    ${barsHtml}
+    <div style="font-size:10px;color:#bbb;margin-top:10px;">* Indicative prices. Actual fares depend on availability and booking date.</div>
+  </div>`);
 }
 
 function startClaim(){ step="train_number"; claim={language:lang(),claim_form:true}; add("bot",g("claim_start")); }
@@ -1533,6 +1642,127 @@ function micStart(e){
   }).catch(err=>{_busy=false;alert("Mic error: "+err.message);});
 }
 function micStop(){ if(_mr&&_mr.state==="recording") _mr.stop(); }
+
+// ═══════════════════════ BOOKING PDF ═══════════════════════
+function generateBookingPDF(bk, ref, bookingUrl){
+  if(typeof window.jspdf === "undefined"){
+    setTimeout(()=>generateBookingPDF(bk, ref, bookingUrl), 800);
+    return;
+  }
+  const {jsPDF} = window.jspdf;
+  const doc = new jsPDF({unit:"mm", format:"a4"});
+
+  // Red header
+  doc.setFillColor(227,6,19);
+  doc.rect(0,0,210,36,"F");
+  doc.setTextColor(255,255,255);
+  doc.setFontSize(26);
+  doc.setFont("helvetica","bold");
+  doc.text("DeBian",15,21);
+  doc.setFontSize(9);
+  doc.setFont("helvetica","normal");
+  doc.text("Digital Rail Assistant  ·  Booking Confirmation",15,30);
+
+  // Reference badge
+  doc.setDrawColor(227,6,19);
+  doc.setLineWidth(0.4);
+  doc.roundedRect(15,42,180,13,2,2);
+  doc.setFontSize(8);
+  doc.setFont("helvetica","bold");
+  doc.setTextColor(227,6,19);
+  doc.text("BOOKING REFERENCE",18,49);
+  doc.setFontSize(13);
+  doc.text(ref,95,49);
+
+  // Journey section title
+  doc.setTextColor(0,0,0);
+  doc.setFontSize(12);
+  doc.setFont("helvetica","bold");
+  doc.text("Journey Details",15,66);
+  doc.setDrawColor(220,220,220);
+  doc.setLineWidth(0.3);
+  doc.line(15,69,195,69);
+
+  const rows = [
+    ["Origin",          bk.origin||"—"],
+    ["Destination",     bk.destination||"—"],
+    ["Travel Date",     formatDateForBahn(bk.travel_date)],
+    ["Departure Time",  bk.travel_time||"—"],
+    ["Passengers",      String(bk.passengers||1)],
+    ["Class",           bk.travel_class==="1"?"1st Class":"2nd Class (Standard)"],
+    ["Ticket Type",     bk.flexibility==="yes"?"Flex (Changeable / Refundable)":"Standard Sparpreis"],
+    ["BahnCard",        (bk.bahncard&&bk.bahncard!=="none")?"BahnCard "+bk.bahncard:"None"],
+    ["Bicycle",         bk.bike==="yes"?"Yes (bicycle reservation required)":"No"],
+  ];
+
+  doc.setFontSize(10);
+  rows.forEach(([label, val], i) => {
+    const y = 78 + i*9;
+    if(i%2===0){ doc.setFillColor(249,249,249); doc.rect(15,y-4,180,9,"F"); }
+    doc.setFont("helvetica","bold");
+    doc.setTextColor(120,120,120);
+    doc.text(label,18,y+1);
+    doc.setFont("helvetica","normal");
+    doc.setTextColor(0,0,0);
+    doc.text(val,78,y+1);
+  });
+
+  // Payment
+  const py = 78 + rows.length*9 + 8;
+  doc.setFont("helvetica","bold");
+  doc.setFontSize(12);
+  doc.setTextColor(0,0,0);
+  doc.text("Payment",15,py);
+  doc.line(15,py+3,195,py+3);
+  doc.setFont("helvetica","normal");
+  doc.setFontSize(10);
+  if(bk.iban_masked){
+    const last4 = (bk.iban||bk.iban_masked).replace(/\s/g,"").slice(-4);
+    doc.text("IBAN ending ****"+last4+"  ✓ Confirmed",18,py+11);
+  } else {
+    doc.text("Complete payment on bahn.de",18,py+11);
+  }
+
+  // Booking URL
+  const qrY = py+22;
+  doc.setFont("helvetica","bold");
+  doc.setFontSize(12);
+  doc.text("Complete Your Booking",15,qrY);
+  doc.line(15,qrY+3,195,qrY+3);
+  doc.setFont("helvetica","normal");
+  doc.setFontSize(9);
+  doc.text("Scan the QR code or open the link below to finalise on bahn.de:",18,qrY+11);
+  doc.setTextColor(227,6,19);
+  const urlText = (bookingUrl||"https://www.bahn.de").slice(0,100);
+  doc.text(urlText,18,qrY+18);
+
+  // Footer
+  doc.setTextColor(180,180,180);
+  doc.setFontSize(8);
+  doc.text("Generated by DeBian Digital Rail Assistant  ·  This is a booking summary only.",15,278);
+  doc.text("All bookings subject to Deutsche Bahn terms and conditions.",15,283);
+
+  // QR code — rendered into a hidden container, then added as image
+  const qrDiv = document.createElement("div");
+  qrDiv.style.cssText = "position:fixed;left:-9999px;top:-9999px;";
+  document.body.appendChild(qrDiv);
+  try {
+    new QRCode(qrDiv, {text:bookingUrl||"https://www.bahn.de", width:128, height:128, colorDark:"#000000", colorLight:"#ffffff"});
+  } catch(e){ document.body.removeChild(qrDiv); doc.save("DeBian_"+ref+".pdf"); return; }
+
+  setTimeout(()=>{
+    const canvas = qrDiv.querySelector("canvas");
+    if(canvas){
+      try { doc.addImage(canvas.toDataURL("image/png"),"PNG",135,qrY+5,55,55); } catch(e){}
+      doc.setFontSize(8);
+      doc.setTextColor(100,100,100);
+      doc.text("Scan to book",148,qrY+63);
+    }
+    document.body.removeChild(qrDiv);
+    doc.save("DeBian_Booking_"+ref+".pdf");
+    add("bot","📥 Booking summary PDF downloaded: DeBian_Booking_"+ref+".pdf");
+  }, 400);
+}
 
 // ═══════════════════════ BOOT ═══════════════════════
 add("bot", GUIDED["en"]["greet1"]);

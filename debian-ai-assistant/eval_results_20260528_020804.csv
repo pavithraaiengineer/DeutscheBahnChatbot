@@ -1,0 +1,101 @@
+id,description,role,passed,relevance_hit,rbac_passed,precision_at_k,recall_at_k,mrr,groundedness,faithfulness,answer_relevance,num_retrieved,latency_ms,forbidden_leaked,error
+TC-001,Customer compensation query,customer,False,False,True,0.0,0.0,0.0,0.0,0.18,0.0,0,18201.3,,"(404)
+Reason: Not Found
+HTTP response headers: HTTPHeaderDict({'content-type': 'text/plain; charset=utf-8', 'vary': 'origin, access-control-request-method, access-control-request-headers', 'access-control-allow-origin': '*', 'access-control-expose-headers': '*', 'x-pinecone-api-version': '2025-04', 'x-cloud-trace-context': '46d6475e39c092cb5c458e5eb873c6af', 'date': 'Wed, 27 May 2026 20:37:39 GMT', 'server': 'Google Frontend', 'Content-Length': '87', 'Via': '1.1 google', 'Alt-Svc': 'h3="":443""; ma=2592000'})
+HTTP response body: {""error"":{""code"":""NOT_FOUND"",""message"":""Resource debian-index not found""},""status"":404}
+"
+TC-002,German compensation query,customer,False,False,True,0.0,0.0,0.0,0.0,0.18,0.0,0,1571.5,,"(404)
+Reason: Not Found
+HTTP response headers: HTTPHeaderDict({'content-type': 'text/plain; charset=utf-8', 'vary': 'origin, access-control-request-method, access-control-request-headers', 'access-control-allow-origin': '*', 'access-control-expose-headers': '*', 'x-pinecone-api-version': '2025-04', 'x-cloud-trace-context': '7c96d28022a420487a9ef59a5a064da2', 'date': 'Wed, 27 May 2026 20:37:41 GMT', 'server': 'Google Frontend', 'Content-Length': '87', 'Via': '1.1 google', 'Alt-Svc': 'h3="":443""; ma=2592000,h3-29="":443""; ma=2592000'})
+HTTP response body: {""error"":{""code"":""NOT_FOUND"",""message"":""Resource debian-index not found""},""status"":404}
+"
+TC-003,Missed connection refund,customer,False,False,True,0.0,0.0,0.0,0.0,0.18,0.0,0,1060.7,,"(404)
+Reason: Not Found
+HTTP response headers: HTTPHeaderDict({'content-type': 'text/plain; charset=utf-8', 'vary': 'origin, access-control-request-method, access-control-request-headers', 'access-control-allow-origin': '*', 'access-control-expose-headers': '*', 'x-pinecone-api-version': '2025-04', 'x-cloud-trace-context': '7ae3c1fa8ea9ea3975b004687975ad03', 'date': 'Wed, 27 May 2026 20:37:42 GMT', 'server': 'Google Frontend', 'Content-Length': '87', 'Via': '1.1 google', 'Alt-Svc': 'h3="":443""; ma=2592000,h3-29="":443""; ma=2592000'})
+HTTP response body: {""error"":{""code"":""NOT_FOUND"",""message"":""Resource debian-index not found""},""status"":404}
+"
+TC-004,Accessibility query,customer,False,False,True,0.0,0.0,0.0,0.0,0.18,0.0,0,1098.9,,"(404)
+Reason: Not Found
+HTTP response headers: HTTPHeaderDict({'content-type': 'text/plain; charset=utf-8', 'vary': 'origin, access-control-request-method, access-control-request-headers', 'access-control-allow-origin': '*', 'access-control-expose-headers': '*', 'x-pinecone-api-version': '2025-04', 'x-cloud-trace-context': '15b3d86b46534fe4631d455bedaf0b27', 'date': 'Wed, 27 May 2026 20:37:43 GMT', 'server': 'Google Frontend', 'Content-Length': '87', 'Via': '1.1 google', 'Alt-Svc': 'h3="":443""; ma=2592000'})
+HTTP response body: {""error"":{""code"":""NOT_FOUND"",""message"":""Resource debian-index not found""},""status"":404}
+"
+TC-005,Train cancellation query,customer,False,False,True,0.0,0.0,0.0,0.0,0.18,0.0,0,1540.8,,"(404)
+Reason: Not Found
+HTTP response headers: HTTPHeaderDict({'content-type': 'text/plain; charset=utf-8', 'vary': 'origin, access-control-request-method, access-control-request-headers', 'access-control-allow-origin': '*', 'access-control-expose-headers': '*', 'x-pinecone-api-version': '2025-04', 'x-cloud-trace-context': 'bc666aa5978e39e4ba52a5d6f00e4610', 'date': 'Wed, 27 May 2026 20:37:45 GMT', 'server': 'Google Frontend', 'Content-Length': '87', 'Via': '1.1 google', 'Alt-Svc': 'h3="":443""; ma=2592000,h3-29="":443""; ma=2592000'})
+HTTP response body: {""error"":{""code"":""NOT_FOUND"",""message"":""Resource debian-index not found""},""status"":404}
+"
+TC-006,IBAN refund method,customer,False,False,True,0.0,0.0,0.0,0.0,0.18,0.0,0,1104.8,,"(404)
+Reason: Not Found
+HTTP response headers: HTTPHeaderDict({'content-type': 'text/plain; charset=utf-8', 'vary': 'origin, access-control-request-method, access-control-request-headers', 'access-control-allow-origin': '*', 'access-control-expose-headers': '*', 'x-pinecone-api-version': '2025-04', 'x-cloud-trace-context': '1e3456844c8ab252cca60a9266f34fee', 'date': 'Wed, 27 May 2026 20:37:46 GMT', 'server': 'Google Frontend', 'Content-Length': '87', 'Via': '1.1 google', 'Alt-Svc': 'h3="":443""; ma=2592000'})
+HTTP response body: {""error"":{""code"":""NOT_FOUND"",""message"":""Resource debian-index not found""},""status"":404}
+"
+TC-007,Helpline query,customer,False,False,True,0.0,0.0,0.0,0.0,0.18,0.0,0,1414.5,,"(404)
+Reason: Not Found
+HTTP response headers: HTTPHeaderDict({'content-type': 'text/plain; charset=utf-8', 'vary': 'origin, access-control-request-method, access-control-request-headers', 'access-control-allow-origin': '*', 'access-control-expose-headers': '*', 'x-pinecone-api-version': '2025-04', 'x-cloud-trace-context': '885045b643346c9abf419e345c566bbc', 'date': 'Wed, 27 May 2026 20:37:47 GMT', 'server': 'Google Frontend', 'Content-Length': '87', 'Via': '1.1 google', 'Alt-Svc': 'h3="":443""; ma=2592000'})
+HTTP response body: {""error"":{""code"":""NOT_FOUND"",""message"":""Resource debian-index not found""},""status"":404}
+"
+TC-008,Employee occupancy SOP,employee,False,False,True,0.0,0.0,0.0,0.0,0.18,0.0,0,1052.9,,"(404)
+Reason: Not Found
+HTTP response headers: HTTPHeaderDict({'content-type': 'text/plain; charset=utf-8', 'vary': 'origin, access-control-request-method, access-control-request-headers', 'access-control-allow-origin': '*', 'access-control-expose-headers': '*', 'x-pinecone-api-version': '2025-04', 'x-cloud-trace-context': '6acbfb9e2d6d20f0fe7b80a0e4f9b5ad', 'date': 'Wed, 27 May 2026 20:37:48 GMT', 'server': 'Google Frontend', 'Content-Length': '87', 'Via': '1.1 google', 'Alt-Svc': 'h3="":443""; ma=2592000'})
+HTTP response body: {""error"":{""code"":""NOT_FOUND"",""message"":""Resource debian-index not found""},""status"":404}
+"
+TC-009,Employee escalation SOP,employee,False,False,True,0.0,0.0,0.0,0.0,0.18,0.0,0,1230.6,,"(404)
+Reason: Not Found
+HTTP response headers: HTTPHeaderDict({'content-type': 'text/plain; charset=utf-8', 'vary': 'origin, access-control-request-method, access-control-request-headers', 'access-control-allow-origin': '*', 'access-control-expose-headers': '*', 'x-pinecone-api-version': '2025-04', 'x-cloud-trace-context': '144a1495eec25efbeb05a5a50dab5c2a', 'date': 'Wed, 27 May 2026 20:37:50 GMT', 'server': 'Google Frontend', 'Content-Length': '87', 'Via': '1.1 google', 'Alt-Svc': 'h3="":443""; ma=2592000'})
+HTTP response body: {""error"":{""code"":""NOT_FOUND"",""message"":""Resource debian-index not found""},""status"":404}
+"
+TC-010,Hotel reimbursement rules,employee,False,False,True,0.0,0.0,0.0,0.0,0.18,0.0,0,1568.9,,"(404)
+Reason: Not Found
+HTTP response headers: HTTPHeaderDict({'content-type': 'text/plain; charset=utf-8', 'vary': 'origin, access-control-request-method, access-control-request-headers', 'access-control-allow-origin': '*', 'access-control-expose-headers': '*', 'x-pinecone-api-version': '2025-04', 'x-cloud-trace-context': '00935765d785ba79e6b9c2e71697bf8a', 'date': 'Wed, 27 May 2026 20:37:51 GMT', 'server': 'Google Frontend', 'Content-Length': '87', 'Via': '1.1 google', 'Alt-Svc': 'h3="":443""; ma=2592000'})
+HTTP response body: {""error"":{""code"":""NOT_FOUND"",""message"":""Resource debian-index not found""},""status"":404}
+"
+TC-011,Employee refund override,employee,False,False,True,0.0,0.0,0.0,0.0,0.18,0.0,0,1472.6,,"(404)
+Reason: Not Found
+HTTP response headers: HTTPHeaderDict({'content-type': 'text/plain; charset=utf-8', 'vary': 'origin, access-control-request-method, access-control-request-headers', 'access-control-allow-origin': '*', 'access-control-expose-headers': '*', 'x-pinecone-api-version': '2025-04', 'x-cloud-trace-context': '5f62bc5281f1e64274add300c1469501', 'date': 'Wed, 27 May 2026 20:37:53 GMT', 'server': 'Google Frontend', 'Content-Length': '87', 'Via': '1.1 google', 'Alt-Svc': 'h3="":443""; ma=2592000'})
+HTTP response body: {""error"":{""code"":""NOT_FOUND"",""message"":""Resource debian-index not found""},""status"":404}
+"
+TC-012,Admin fraud thresholds,admin,False,False,True,0.0,0.0,0.0,0.0,0.18,0.0,0,1046.3,,"(404)
+Reason: Not Found
+HTTP response headers: HTTPHeaderDict({'content-type': 'text/plain; charset=utf-8', 'vary': 'origin, access-control-request-method, access-control-request-headers', 'access-control-allow-origin': '*', 'access-control-expose-headers': '*', 'x-pinecone-api-version': '2025-04', 'x-cloud-trace-context': 'e8999ab7daaddb1bbda46e213c33055d', 'date': 'Wed, 27 May 2026 20:37:54 GMT', 'server': 'Google Frontend', 'Content-Length': '87', 'Via': '1.1 google', 'Alt-Svc': 'h3="":443""; ma=2592000'})
+HTTP response body: {""error"":{""code"":""NOT_FOUND"",""message"":""Resource debian-index not found""},""status"":404}
+"
+TC-013,Admin analytics dashboard,admin,False,False,True,0.0,0.0,0.0,0.0,0.18,0.0,0,1078.5,,"(404)
+Reason: Not Found
+HTTP response headers: HTTPHeaderDict({'content-type': 'text/plain; charset=utf-8', 'vary': 'origin, access-control-request-method, access-control-request-headers', 'access-control-allow-origin': '*', 'access-control-expose-headers': '*', 'x-pinecone-api-version': '2025-04', 'x-cloud-trace-context': '87e8c0a9c0f8e92584309679038ce845', 'date': 'Wed, 27 May 2026 20:37:55 GMT', 'server': 'Google Frontend', 'Content-Length': '87', 'Via': '1.1 google', 'Alt-Svc': 'h3="":443""; ma=2592000,h3-29="":443""; ma=2592000'})
+HTTP response body: {""error"":{""code"":""NOT_FOUND"",""message"":""Resource debian-index not found""},""status"":404}
+"
+TC-014,Admin financial SLA,admin,False,False,True,0.0,0.0,0.0,0.0,0.18,0.0,0,1077.8,,"(404)
+Reason: Not Found
+HTTP response headers: HTTPHeaderDict({'content-type': 'text/plain; charset=utf-8', 'vary': 'origin, access-control-request-method, access-control-request-headers', 'access-control-allow-origin': '*', 'access-control-expose-headers': '*', 'x-pinecone-api-version': '2025-04', 'x-cloud-trace-context': 'fb5299b173d6d6914226118c04b80e39', 'date': 'Wed, 27 May 2026 20:37:56 GMT', 'server': 'Google Frontend', 'Content-Length': '87', 'Via': '1.1 google', 'Alt-Svc': 'h3="":443""; ma=2592000,h3-29="":443""; ma=2592000'})
+HTTP response body: {""error"":{""code"":""NOT_FOUND"",""message"":""Resource debian-index not found""},""status"":404}
+"
+TC-015,Admin system config,admin,False,False,True,0.0,0.0,0.0,0.0,0.18,0.0,0,1486.7,,"(404)
+Reason: Not Found
+HTTP response headers: HTTPHeaderDict({'content-type': 'text/plain; charset=utf-8', 'vary': 'origin, access-control-request-method, access-control-request-headers', 'access-control-allow-origin': '*', 'access-control-expose-headers': '*', 'x-pinecone-api-version': '2025-04', 'x-cloud-trace-context': 'c56a418c8dcd4aa0df32d014b36e9b27', 'date': 'Wed, 27 May 2026 20:37:57 GMT', 'server': 'Google Frontend', 'Content-Length': '87', 'Via': '1.1 google', 'Alt-Svc': 'h3="":443""; ma=2592000'})
+HTTP response body: {""error"":{""code"":""NOT_FOUND"",""message"":""Resource debian-index not found""},""status"":404}
+"
+TC-016,RBAC: customer must NOT see admin docs,customer,False,True,True,0.0,1.0,1.0,0.0,0.18,0.0,0,1174.9,,"(404)
+Reason: Not Found
+HTTP response headers: HTTPHeaderDict({'content-type': 'text/plain; charset=utf-8', 'vary': 'origin, access-control-request-method, access-control-request-headers', 'access-control-allow-origin': '*', 'access-control-expose-headers': '*', 'x-pinecone-api-version': '2025-04', 'x-cloud-trace-context': '6a848b59b297a61308e0ad18eddb35f6', 'date': 'Wed, 27 May 2026 20:37:58 GMT', 'server': 'Google Frontend', 'Content-Length': '87', 'Via': '1.1 google', 'Alt-Svc': 'h3="":443""; ma=2592000'})
+HTTP response body: {""error"":{""code"":""NOT_FOUND"",""message"":""Resource debian-index not found""},""status"":404}
+"
+TC-017,RBAC: customer must NOT see employee SOPs,customer,False,True,True,0.0,1.0,1.0,0.0,0.18,0.0,0,1689.9,,"(404)
+Reason: Not Found
+HTTP response headers: HTTPHeaderDict({'content-type': 'text/plain; charset=utf-8', 'vary': 'origin, access-control-request-method, access-control-request-headers', 'access-control-allow-origin': '*', 'access-control-expose-headers': '*', 'x-pinecone-api-version': '2025-04', 'x-cloud-trace-context': '901e0b1977689b0981a99405c29d0c88', 'date': 'Wed, 27 May 2026 20:38:00 GMT', 'server': 'Google Frontend', 'Content-Length': '87', 'Via': '1.1 google', 'Alt-Svc': 'h3="":443""; ma=2592000'})
+HTTP response body: {""error"":{""code"":""NOT_FOUND"",""message"":""Resource debian-index not found""},""status"":404}
+"
+TC-018,RBAC: employee must NOT see admin docs,employee,False,True,True,0.0,1.0,1.0,0.0,0.18,0.0,0,1108.9,,"(404)
+Reason: Not Found
+HTTP response headers: HTTPHeaderDict({'content-type': 'text/plain; charset=utf-8', 'vary': 'origin, access-control-request-method, access-control-request-headers', 'access-control-allow-origin': '*', 'access-control-expose-headers': '*', 'x-pinecone-api-version': '2025-04', 'x-cloud-trace-context': '94f0ab8a61c0457bd91f94dec57df179', 'date': 'Wed, 27 May 2026 20:38:01 GMT', 'server': 'Google Frontend', 'Content-Length': '87', 'Via': '1.1 google', 'Alt-Svc': 'h3="":443""; ma=2592000'})
+HTTP response body: {""error"":{""code"":""NOT_FOUND"",""message"":""Resource debian-index not found""},""status"":404}
+"
+TC-019,Extraordinary circumstances coverage,customer,False,False,True,0.0,0.0,0.0,0.0,0.18,0.0,0,1685.5,,"(404)
+Reason: Not Found
+HTTP response headers: HTTPHeaderDict({'content-type': 'text/plain; charset=utf-8', 'vary': 'origin, access-control-request-method, access-control-request-headers', 'access-control-allow-origin': '*', 'access-control-expose-headers': '*', 'x-pinecone-api-version': '2025-04', 'x-cloud-trace-context': '58f5f011aa36c0ab1685f0a50a6fa3af', 'date': 'Wed, 27 May 2026 20:38:03 GMT', 'server': 'Google Frontend', 'Content-Length': '87', 'Via': '1.1 google', 'Alt-Svc': 'h3="":443""; ma=2592000'})
+HTTP response body: {""error"":{""code"":""NOT_FOUND"",""message"":""Resource debian-index not found""},""status"":404}
+"
+TC-020,Lost luggage coverage,customer,False,False,True,0.0,0.0,0.0,0.0,0.18,0.0,0,1068.5,,"(404)
+Reason: Not Found
+HTTP response headers: HTTPHeaderDict({'content-type': 'text/plain; charset=utf-8', 'vary': 'origin, access-control-request-method, access-control-request-headers', 'access-control-allow-origin': '*', 'access-control-expose-headers': '*', 'x-pinecone-api-version': '2025-04', 'x-cloud-trace-context': '07af155558e68f94f004051dab6feef2', 'date': 'Wed, 27 May 2026 20:38:04 GMT', 'server': 'Google Frontend', 'Content-Length': '87', 'Via': '1.1 google', 'Alt-Svc': 'h3="":443""; ma=2592000'})
+HTTP response body: {""error"":{""code"":""NOT_FOUND"",""message"":""Resource debian-index not found""},""status"":404}
+"
