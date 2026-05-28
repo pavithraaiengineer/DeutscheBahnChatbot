@@ -1,0 +1,16 @@
+# Place this file at:
+#   /etc/grafana/provisioning/dashboards/debian.yaml
+# (or mount it via ConfigMap in Kubernetes)
+
+apiVersion: 1
+
+providers:
+  - name: "DeBian Dashboards"
+    orgId: 1
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards/debian
+      foldersFromFilesStructure: false

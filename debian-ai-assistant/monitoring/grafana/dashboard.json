@@ -1,0 +1,543 @@
+{
+  "__inputs": [
+    {
+      "name": "DS_PROMETHEUS",
+      "label": "Prometheus",
+      "description": "",
+      "type": "datasource",
+      "pluginId": "prometheus",
+      "pluginName": "Prometheus"
+    }
+  ],
+  "__requires": [
+    { "type": "grafana", "id": "grafana", "name": "Grafana", "version": "10.0.0" },
+    { "type": "datasource", "id": "prometheus", "name": "Prometheus", "version": "1.0.0" },
+    { "type": "panel", "id": "barchart", "name": "Bar chart", "version": "" },
+    { "type": "panel", "id": "piechart", "name": "Pie chart", "version": "" },
+    { "type": "panel", "id": "timeseries", "name": "Time series", "version": "" },
+    { "type": "panel", "id": "stat", "name": "Stat", "version": "" },
+    { "type": "panel", "id": "histogram", "name": "Histogram", "version": "" }
+  ],
+  "annotations": { "list": [] },
+  "description": "DeBian AI Rail Assistant — Guardrail Security, Agent Intelligence, RAG Quality",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 100,
+      "title": "🛡️  Guardrail Security",
+      "type": "row"
+    },
+
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Total guardrail input blocks per minute, split by attack type. Spike = active attack campaign.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "lineWidth": 2, "fillOpacity": 10 },
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 1 },
+      "id": 1,
+      "options": {
+        "tooltip": { "mode": "multi" },
+        "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["sum", "max"] }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "sum by (reason) (rate(debian_guardrail_input_blocks_total[$__rate_interval]))",
+          "legendFormat": "{{ reason }}",
+          "refId": "A"
+        }
+      ],
+      "title": "Input Block Rate by Reason",
+      "type": "timeseries"
+    },
+
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Output blocks and masks by reason. Hard blocks mean sensitive data nearly leaked.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "lineWidth": 2, "fillOpacity": 10 },
+          "unit": "reqps"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 1 },
+      "id": 2,
+      "options": {
+        "tooltip": { "mode": "multi" },
+        "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["sum", "max"] }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "sum by (reason) (rate(debian_guardrail_output_blocks_total[$__rate_interval]))",
+          "legendFormat": "{{ reason }}",
+          "refId": "A"
+        }
+      ],
+      "title": "Output Block Rate by Reason",
+      "type": "timeseries"
+    },
+
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Current total input blocks broken down by user role. High customer counts = targeted attack.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "fillOpacity": 70 }
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 9 },
+      "id": 3,
+      "options": {
+        "barWidth": 0.7,
+        "groupWidth": 0.7,
+        "orientation": "horizontal",
+        "legend": { "displayMode": "list", "placement": "bottom" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "sum by (user_role, reason) (debian_guardrail_input_blocks_total)",
+          "legendFormat": "{{ user_role }} / {{ reason }}",
+          "refId": "A"
+        }
+      ],
+      "title": "Cumulative Input Blocks by Role + Reason",
+      "type": "barchart"
+    },
+
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Sessions that triggered > 2 blocks and tripped the repeated-attack circuit breaker.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "fixedColor": "#F2495C", "mode": "fixed" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1 },
+              { "color": "red", "value": 5 }
+            ]
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 9 },
+      "id": 4,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["sum"] },
+        "text": {}
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "sum(debian_guardrail_attack_escalations_total)",
+          "legendFormat": "Escalated sessions",
+          "refId": "A"
+        }
+      ],
+      "title": "Repeated-Attack Escalations",
+      "type": "stat"
+    },
+
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Block ratio: what fraction of all requests are being blocked? Baseline should stay < 2%.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "mappings": [],
+          "max": 1,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.02 },
+              { "color": "red", "value": 0.1 }
+            ]
+          },
+          "unit": "percentunit"
+        }
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 9 },
+      "id": 5,
+      "options": { "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"] }, "showThresholdLabels": true, "showThresholdMarkers": true },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "sum(rate(debian_guardrail_input_blocks_total[$__rate_interval])) / sum(rate(debian_http_requests_total{path=\"/chat\"}[$__rate_interval]))",
+          "legendFormat": "Block ratio",
+          "refId": "A"
+        }
+      ],
+      "title": "Block Rate vs Chat Traffic",
+      "type": "gauge"
+    },
+
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 17 },
+      "id": 101,
+      "title": "🤖  Agent Intelligence & LLM Usage",
+      "type": "row"
+    },
+
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Share of responses per intent category. Compensation and delay dominate for a rail assistant.",
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "unit": "short" }
+      },
+      "gridPos": { "h": 9, "w": 8, "x": 0, "y": 18 },
+      "id": 6,
+      "options": {
+        "displayLabels": ["percent"],
+        "legend": { "displayMode": "table", "placement": "right", "values": ["value", "percent"] },
+        "pieType": "donut"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "sum by (intent) (debian_agent_responses_total)",
+          "legendFormat": "{{ intent }}",
+          "refId": "A"
+        }
+      ],
+      "title": "Intent Distribution (All Time)",
+      "type": "piechart"
+    },
+
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Responses served by the real LLM vs. keyword/local fallback over time.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "lineWidth": 2, "fillOpacity": 15, "stacking": { "mode": "normal" } },
+          "unit": "reqps"
+        }
+      },
+      "gridPos": { "h": 9, "w": 8, "x": 8, "y": 18 },
+      "id": 7,
+      "options": {
+        "tooltip": { "mode": "multi" },
+        "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["sum"] }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "sum(rate(debian_agent_llm_calls_total[$__rate_interval]))",
+          "legendFormat": "LLM (real)",
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "sum(rate(debian_agent_fallback_calls_total[$__rate_interval]))",
+          "legendFormat": "Fallback (keyword/local)",
+          "refId": "B"
+        }
+      ],
+      "title": "LLM vs. Fallback Mode",
+      "type": "timeseries"
+    },
+
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Language distribution of all agent responses.",
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "unit": "short" }
+      },
+      "gridPos": { "h": 9, "w": 8, "x": 16, "y": 18 },
+      "id": 8,
+      "options": {
+        "displayLabels": ["name", "percent"],
+        "legend": { "displayMode": "table", "placement": "right", "values": ["value", "percent"] },
+        "pieType": "pie"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "sum by (language) (debian_agent_responses_total)",
+          "legendFormat": "{{ language }}",
+          "refId": "A"
+        }
+      ],
+      "title": "Language Distribution",
+      "type": "piechart"
+    },
+
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "LLM calls per intent over time — useful for cost attribution.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "lineWidth": 1, "fillOpacity": 5 },
+          "unit": "reqps"
+        }
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 27 },
+      "id": 9,
+      "options": {
+        "tooltip": { "mode": "multi" },
+        "legend": { "displayMode": "table", "placement": "right", "calcs": ["mean", "sum", "max"] }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "sum by (intent) (rate(debian_agent_llm_calls_total[$__rate_interval]))",
+          "legendFormat": "{{ intent }}",
+          "refId": "A"
+        }
+      ],
+      "title": "LLM Calls by Intent (Rate)",
+      "type": "timeseries"
+    },
+
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 35 },
+      "id": 102,
+      "title": "📚  RAG Retrieval Quality",
+      "type": "row"
+    },
+
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Distribution of documents returned after role-filtering. 0 = empty retrieval = likely a quality problem.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "fillOpacity": 70, "lineWidth": 1 },
+          "unit": "short"
+        }
+      },
+      "gridPos": { "h": 9, "w": 8, "x": 0, "y": 36 },
+      "id": 10,
+      "options": {
+        "bucketOffset": 0,
+        "fillOpacity": 70,
+        "legend": { "displayMode": "list", "placement": "bottom" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "sum by (le) (debian_rag_docs_returned_bucket)",
+          "format": "heatmap",
+          "legendFormat": "{{ le }}",
+          "refId": "A"
+        }
+      ],
+      "title": "Docs Returned per Query (Histogram)",
+      "type": "histogram"
+    },
+
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Top-document similarity score distribution. Scores < 0.5 may indicate poor embedding coverage.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "fillOpacity": 70 },
+          "unit": "short"
+        }
+      },
+      "gridPos": { "h": 9, "w": 8, "x": 8, "y": 36 },
+      "id": 11,
+      "options": {
+        "bucketOffset": 0,
+        "fillOpacity": 70,
+        "legend": { "displayMode": "list", "placement": "bottom" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "sum by (le) (debian_rag_top_score_bucket)",
+          "format": "heatmap",
+          "legendFormat": "{{ le }}",
+          "refId": "A"
+        }
+      ],
+      "title": "Top-Score Distribution",
+      "type": "histogram"
+    },
+
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Queries that returned zero documents after role filtering. Sustained > 5% = investigate embeddings or role config.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.03 },
+              { "color": "red", "value": 0.1 }
+            ]
+          },
+          "unit": "percentunit"
+        }
+      },
+      "gridPos": { "h": 9, "w": 8, "x": 16, "y": 36 },
+      "id": 12,
+      "options": { "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"] }, "showThresholdLabels": true, "showThresholdMarkers": true },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "sum(rate(debian_rag_zero_results_total[$__rate_interval])) / sum(rate(debian_rag_store_mode_total[$__rate_interval]))",
+          "legendFormat": "Zero-result rate",
+          "refId": "A"
+        }
+      ],
+      "title": "Zero-Result Rate",
+      "type": "gauge"
+    },
+
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Rate of documents dropped because the user's role was too low. High rate for employees/customers = over-restrictive access rules.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "lineWidth": 2, "fillOpacity": 10 },
+          "unit": "reqps"
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 45 },
+      "id": 13,
+      "options": {
+        "tooltip": { "mode": "multi" },
+        "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["sum", "mean"] }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "sum by (user_role) (rate(debian_rag_role_filtered_total[$__rate_interval]))",
+          "legendFormat": "{{ user_role }}",
+          "refId": "A"
+        }
+      ],
+      "title": "Role-Filtered Documents Rate",
+      "type": "timeseries"
+    },
+
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "Vector store mode — local JSON vs. Pinecone. Useful to confirm production is hitting Pinecone.",
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "unit": "short" }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 45 },
+      "id": 14,
+      "options": {
+        "displayLabels": ["name", "percent"],
+        "legend": { "displayMode": "table", "placement": "right", "values": ["value", "percent"] },
+        "pieType": "donut"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "sum by (mode) (debian_rag_store_mode_total)",
+          "legendFormat": "{{ mode }}",
+          "refId": "A"
+        }
+      ],
+      "title": "Vector Store Mode (local vs. Pinecone)",
+      "type": "piechart"
+    },
+
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 53 },
+      "id": 103,
+      "title": "⚡  HTTP Performance",
+      "type": "row"
+    },
+
+    {
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "description": "p50 / p95 / p99 request latency per endpoint.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "lineWidth": 2 },
+          "unit": "s"
+        }
+      },
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 54 },
+      "id": 15,
+      "options": {
+        "tooltip": { "mode": "multi" },
+        "legend": { "displayMode": "table", "placement": "right", "calcs": ["mean", "max"] }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "histogram_quantile(0.50, sum by (path, le) (rate(debian_http_request_duration_seconds_bucket[$__rate_interval])))",
+          "legendFormat": "p50 {{ path }}",
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "histogram_quantile(0.95, sum by (path, le) (rate(debian_http_request_duration_seconds_bucket[$__rate_interval])))",
+          "legendFormat": "p95 {{ path }}",
+          "refId": "B"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+          "expr": "histogram_quantile(0.99, sum by (path, le) (rate(debian_http_request_duration_seconds_bucket[$__rate_interval])))",
+          "legendFormat": "p99 {{ path }}",
+          "refId": "C"
+        }
+      ],
+      "title": "HTTP Latency Percentiles by Endpoint",
+      "type": "timeseries"
+    }
+
+  ],
+  "refresh": "30s",
+  "schemaVersion": 38,
+  "tags": ["debian", "ai", "security", "rag", "llm"],
+  "templating": {
+    "list": [
+      {
+        "current": {},
+        "hide": 0,
+        "includeAll": false,
+        "name": "datasource",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "type": "datasource",
+        "label": "Datasource"
+      }
+    ]
+  },
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "DeBian AI Assistant — Monitoring",
+  "uid": "debian-monitoring-v1",
+  "version": 1
+}
